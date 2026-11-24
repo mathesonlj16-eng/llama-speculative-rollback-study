@@ -88,4 +88,19 @@ shape_rows = [r for r in csv_rows("g12-default.csv") if r["shape"] in ("whole", 
 assert len(shape_rows) == 384
 assert round(max(float(r["max_abs_diff_vs_singles"]) for r in shape_rows), 2) == 2.98
 assert sum(r["top"] != r["ref_top"] for r in shape_rows) == 2
-print("Archived headline aggregates, CPU oracle comparisons and measured sweep points verified.")
+
+# 2026-11-24 rerun: CUDA flag-off control and forced admission-delay control
+reruns = csv_rows("rerun-flag-off.csv")
+forced = csv_rows("admission-control.csv")
+assert len(reruns) == 12 and len(forced) == 22 and all(r["ok"] == "1" for r in reruns + forced)
+assert sum(r["variant"] == "paired" for r in forced) == sum(r["variant"] == "flagoff" for r in forced) == 11
+assert all(r["matches_archive"] == "1" for r in reruns if r["schedule"] == "serial")
+assert len({r["token_arrays_sha256"] for r in reruns if r["schedule"] == "serial"}) == 1
+common = {r["token_arrays_sha256"] for r in forced}
+assert len(common) == 1
+assert {r["target_checkpoint_restores"] for r in forced} == {"35", "37", "38", "39"}
+odd = [r for r in reruns if r["schedule"] == "concurrent" and r["token_arrays_sha256"] not in common]
+assert [(r["variant"], r["run"], r["target_checkpoint_restores"]) for r in odd] == [("flagoff", "r1", "38")]
+assert any(abs(float(r["first_pair_gap_ms"]) - float(odd[0]["first_pair_gap_ms"])) < 3 and
+           r["target_checkpoint_restores"] == "38" for r in forced)
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points and rerun controls verified.")

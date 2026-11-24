@@ -54,6 +54,7 @@ case "$experiment" in
     performance) python3 "$out/slowdown/keep-eval.py" "$out/prof.so" "$out/events";;
     interleaved) python3 "$out/target-ckpt-free/interleaved-throughput.py" "$out/cap.so";;
     flagoff) python3 "$out/target-ckpt-free/flag-off-control.py" "$out/cap.so";;
+    admission) python3 "$repo/scripts/fixtures/admission-control.py" "$out/target-ckpt-free" "$out/cap.so";;
     ngram) python3 "$out/ngram/ngram-eval.py" "$out/cap.so";;
     rollback)
         for fixture in rollback-anchored rollback-controls; do

@@ -1,0 +1,36 @@
+Independent rerun, 2026-11-24. Release scripts at commit 8ac4c17 (later commits change documentation only).
+Fresh clean builds: CPU stock/paired/prototype/keep/exact, CUDA stock/paired/prototype/keep, historical 418fe97b5.
+Toolchain: GTX 1650 (SM 75), CUDA 13.2.86 (archive: 13.1.115). Timed experiments ran with no concurrent compilation.
+
+== Exact comparisons against the archive
+CPU oracle, follow-ups (keep-checks, keep-checks-b2): all token arrays identical to archived records
+Mutations: same differing prompts, invalid-batch errors and disconnects as archived reports
+Numerical G7 sweeps, G11 reference and G12 default CSVs: identical apart from the config label column
+Rollback fixtures E8 target CPU/CUDA, E9 target/draft CUDA and draft CPU: byte-identical CSVs
+Flag-off serial schedule: 6/6 runs byte-identical to archived digests
+
+== Timing comparisons
+Draft sweep: 14 cells, throughput -4.5% to +1.3% vs archive; plain fastest at 1 and 2 slots
+Historical baseline: median 64.88 tok/s over 5 warmed requests (archive 64.76)
+Historical spec: median 31.65 tok/s over 5 warmed requests (archive 30.02); accepted/drafted 90/139
+Interleaved two-slot: paired median 8.79 s (restores [39]), prototype 6.99 s (restores [35]), reduction 20.4%, 0 failures, one distinct output per arm
+  Archive: paired 8.08 s in the 34-restore mode, prototype 6.84 s, reduction 15.3%
+N-gram repetitive 1-slot: best n-gram simple-4-8-rs8 55.5 tok/s (1046 draft tokens) vs plain 44.0
+N-gram repetitive 2-slot: best n-gram map-k4v-4-8 62.0 tok/s (690 draft tokens) vs plain 62.6
+N-gram ordinary 1-slot: best n-gram mod-6-8 57.5 tok/s (0 draft tokens) vs plain 58.0
+N-gram ordinary 2-slot: best n-gram simple-default 95.6 tok/s (0 draft tokens) vs plain 100.0
+N-gram: 72/72 runs completed
+
+== CUDA flag-off control (results/rerun-flag-off.csv)
+Serial: 6/6 identical across paired and flag-off, 33 restores each, matching the archive
+Concurrent token-array set 21efb4822d5c: flagoff-r1(38 restores, gap 21.083 ms)
+Concurrent token-array set 9170e15579ce: flagoff-r2(39 restores, gap 0.011 ms), flagoff-r3(39 restores, gap 0.012 ms), paired-r1(39 restores, gap 0.012 ms), paired-r2(39 restores, gap 0.011 ms), paired-r3(39 restores, gap 0.011 ms)
+Differing run diverges at (prompt, generated-token index): [('1', 2)]
+Archived concurrent runs: one token-array set across six admission orders, 34 restores each; rerun sets differ from it
+
+== Admission-timing control (results/admission-control.csv, scripts/fixtures/admission-control.py)
+Requested first-pair delay 0 ms: 6/6 ok, server gaps 0.0-0.0 ms, restores [39], distinct token-array sets 1
+Requested first-pair delay 21 ms: 10/10 ok, server gaps 22.2-102.2 ms, restores [37, 38], distinct token-array sets 1
+Requested first-pair delay 100 ms: 6/6 ok, server gaps 101.6-265.4 ms, restores [35, 37], distinct token-array sets 1
+All 22 forced runs share token-array set 9170e15579ce: True
+The 0 and 100 ms arms ran before the delay list and repeat count became environment settings; the request logic is otherwise identical.

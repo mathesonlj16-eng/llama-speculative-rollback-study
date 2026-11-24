@@ -34,10 +34,12 @@ bash scripts/run.sh "$STUDY_RUNS/cpu" "$STUDY_RUNS/numerical" "$TARGET" "$DRAFT"
 
 ```bash
 bash scripts/build.sh "$STUDY_RUNS/cuda" cuda
-for experiment in profile performance interleaved flagoff ngram rollback; do
+for experiment in profile performance interleaved flagoff admission ngram rollback; do
     bash scripts/run.sh "$STUDY_RUNS/cuda" "$STUDY_RUNS/$experiment" "$TARGET" "$DRAFT" "$experiment"
 done
 ```
+
+The admission control repeats the flag-off comparison while delaying the second request of the first pair. Set `ADMISSION_DELAYS_MS` (default `0,21,100`) and `ADMISSION_REPEATS` (default 3) to change the arms. The server admits requests at its own step boundaries, so the record keeps the measured gap from the server log. The 2026-11-24 rerun used CUDA 13.2.86. Its serial runs matched the archive, while concurrent two-slot token sequences and restore modes differed from the CUDA 13.1 archive. Compare concurrent CUDA outputs against controls from the same run. Keep timed experiments away from concurrent compilation and host sleep.
 
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
