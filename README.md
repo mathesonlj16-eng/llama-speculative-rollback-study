@@ -57,4 +57,4 @@ The rollback patches are research prototypes for the pinned revision. [PR #32832
 
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
-**AI assistance.** Codex assisted with experiment development and execution in the archived research task and with packaging, checking and drafting this repository. Results come from the archived experiment records and the verification described in the reproduction notes.
+Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.
