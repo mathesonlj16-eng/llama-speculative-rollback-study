@@ -1,0 +1,16 @@
+[
+  "llama-server",
+  "-m",
+  "/models/TARGET.gguf",
+  "-ngl",
+  "99",
+  "-c",
+  "1024",
+  "-np",
+  "1",
+  "--jinja",
+  "--host",
+  "127.0.0.1",
+  "--port",
+  "18091"
+]

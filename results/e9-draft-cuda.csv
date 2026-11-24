@@ -1,0 +1,7 @@
+backend,scenario,x_eq_ref,x_eq_canary,x_eq_truedraft,x_eq_chunk,x_diff_ref,canary_diff,truedraft_diff,chunk_diff_ref,x_top,ref_top
+draft-cuda,d1-a0-r1,0,1,1,1,0.2683816,0,0,0.2683816,27355,1817
+draft-cuda,d2-a0-r2,0,1,1,0,0.2683816,0,0,0.22201955,27355,1817
+draft-cuda,d2-a1-r1,0,1,1,0,0.2683816,0,0,0.22201955,27355,1817
+draft-cuda,d3-a0-r3,0,1,1,0,0.2683816,0,0,0.22201955,27355,1817
+draft-cuda,d3-a1-r2,0,1,1,0,0.2683816,0,0,0.22201955,27355,1817
+draft-cuda,d3-a2-r1,0,1,1,1,0.22201955,0,0,0.22201955,27355,1817

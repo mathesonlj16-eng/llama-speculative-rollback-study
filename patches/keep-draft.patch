@@ -1,0 +1,162 @@
+diff --git a/common/common.cpp b/common/common.cpp
+index 4c75c67..aba99ac 100644
+--- a/common/common.cpp
++++ b/common/common.cpp
+@@ -1748,6 +1748,11 @@ struct llama_context_params common_context_params_to_llama(const common_params &
+     cparams.n_ctx             = params.n_ctx;
+     cparams.n_seq_max         = params.n_parallel;
+     cparams.n_rs_seq          = params.speculative.need_n_rs_seq();
++    // Research prototype: give the target bounded rollback for draft-simple.
++    if (cparams.n_rs_seq == 0 && params.speculative.has_dft() && std::getenv("LLAMA_SPEC_TARGET_CKPT_FREE") != nullptr &&
++        std::find(params.speculative.types.begin(), params.speculative.types.end(), COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE) != params.speculative.types.end()) {
++        cparams.n_rs_seq = params.speculative.draft.n_max;
++    }
+     cparams.n_outputs_max     = std::max(params.n_outputs_max, 0);
+     cparams.n_outputs_max_per_seq = std::max(params.n_outputs_max_per_seq, 0);
+     cparams.n_batch           = params.n_batch;
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+index b40eb55..7fed398 100644
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -306,11 +306,19 @@ struct common_speculative_impl_draft_simple : public common_speculative_impl {
+     bool process(const common_batch & batch_in) override {
+         auto * ctx_dft = params.ctx_dft;
+ 
++        static const bool keep_drafted = std::getenv("LLAMA_SPEC_DRAFT_KEEP") != nullptr &&
++                                         std::getenv("LLAMA_SPEC_TARGET_CKPT_FREE") != nullptr;
++
+         // copy the entries to a batch owned by the draft context, only the last token is output
+         batch.clear();
+         const int32_t n_tokens = batch_in.size();
+         for (int32_t k = 0; k < n_tokens; ++k) {
+             const auto & t = batch_in.tokens[k];
++            // Research prototype: skip positions the draft context already decoded while drafting.
++            if (keep_drafted && t.id != LLAMA_TOKEN_NULL &&
++                t.pos[0] <= llama_memory_seq_pos_max(llama_get_memory(ctx_dft), t.seq_id)) {
++                continue;
++            }
+             const bool output = k == n_tokens - 1;
+             if (t.id != LLAMA_TOKEN_NULL) {
+                 const int32_t idx = batch.add(t.id, t.pos[0], t.seq_id, output);
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index ef3709a..cafddf1 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -1109,6 +1109,49 @@ private:
+     common_context_seq_rm_type ctx_tgt_seq_rm_type = COMMON_CONTEXT_SEQ_RM_TYPE_NO;
+     common_context_seq_rm_type ctx_dft_seq_rm_type = COMMON_CONTEXT_SEQ_RM_TYPE_NO;
+ 
++    bool spec_needs_target_checkpoint(size_t n_draft) const {
++        // Rejection trims both contexts. A full-only draft needs paired restore and replay.
++        return ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
++               (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS &&
++                ((ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL && !spec_target_ckpt_free) ||
++                 n_draft > llama_n_rs_seq(ctx_tgt)));
++    }
++
++    // Research prototype: the target rolls back through its snapshots. A full-only draft restores its
++    // own checkpoint and re-decodes the anchor plus the accepted draft tokens.
++    bool spec_target_ckpt_free = false;
++    bool spec_draft_keep = false;
++
++    bool spec_rollback_target_only(server_slot & slot, const llama_tokens & accepted) {
++        const llama_pos pos0 = slot.spec_ckpt.pos_max + 1;
++        const llama_pos pos_keep = pos0 + (llama_pos) accepted.size();
++
++        if (!llama_memory_seq_rm(llama_get_memory(ctx_tgt), slot.id, pos_keep, -1)) {
++            return false;
++        }
++
++        if (!slot.spec_ckpt.load_dft(ctx_dft, slot.id, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY) ||
++            !llama_memory_seq_rm(llama_get_memory(ctx_dft), slot.id, pos0, -1)) {
++            return false;
++        }
++
++        llama_batch_ext * b = llama_batch_ext_init(ctx_dft);
++        bool ok = true;
++        for (size_t i = 0; i < accepted.size() && ok; ++i) {
++            // the last accepted token is the new sample and has not been decoded yet
++            const llama_token id = i == 0 ? slot.sampled : accepted[i - 1];
++            const llama_pos pos = pos0 + (llama_pos) i;
++            const int32_t idx = llama_batch_ext_add_token(b, slot.id, id);
++            ok = idx >= 0 && llama_batch_ext_set_pos(b, idx, &pos) && llama_batch_ext_set_output_logits(b, idx, false);
++        }
++        ok = ok && llama_process(ctx_dft, LLAMA_PROCESS_TYPE_DECODE, b) == 0;
++        llama_batch_ext_free(b);
++        if (ok) {
++            llama_synchronize(ctx_dft);
++        }
++        return ok;
++    }
++
+     common_speculative_ptr spec;
+ 
+     bool add_bos_token = true;
+@@ -1529,7 +1572,14 @@ private:
+             ctx_dft_seq_rm_type = common_context_can_seq_rm(ctx_dft);
+         }
+ 
++        spec_target_ckpt_free = spec && ctx_dft && std::getenv("LLAMA_SPEC_TARGET_CKPT_FREE") != nullptr &&
++                                ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS &&
++                                ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
++
++        spec_draft_keep = spec_target_ckpt_free && std::getenv("LLAMA_SPEC_DRAFT_KEEP") != nullptr;
++
+         if (spec) {
++            SRV_INF("speculative rollback: target checkpoint-free = %d, keep draft = %d\n", (int) spec_target_ckpt_free, (int) spec_draft_keep);
+             // Research diagnostics: resolved rollback capability, not requested configuration.
+             SRV_INF("speculative rollback: target n_rs_seq=%u rm_type=%d, draft n_rs_seq=%u rm_type=%d\n",
+                     llama_n_rs_seq(ctx_tgt), (int) ctx_tgt_seq_rm_type,
+@@ -3889,7 +3939,7 @@ private:
+             // TODO: avoid restoring the draft context and re-evaluating the drafted tokens when not needed [TAG_SPEC_AVOID_DRAFT_REEVAL]
+             const bool use_ckpt_dft = ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
+ 
+-            if (ctx_dft) {
++            if (ctx_dft && !spec_draft_keep) {
+                 if (use_ckpt_dft) {
+                     GGML_ASSERT(ckpt.load_dft(ctx_dft, slot.id, LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY));
+                 }
+@@ -3901,9 +3951,7 @@ private:
+             }
+ 
+             if (!draft.empty()) {
+-                const bool use_ckpt_tgt =
+-                    ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
+-                   (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && draft.size() > llama_n_rs_seq(ctx_tgt));
++                const bool use_ckpt_tgt = spec_needs_target_checkpoint(draft.size());
+ 
+                 const bool use_ckpt_dft =
+                    (ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && draft.size() > llama_n_rs_seq(ctx_dft));
+@@ -4913,9 +4961,7 @@ private:
+                 const uint32_t n_rollback = slot.spec_draft.size() + 1 - accepted.size();
+ 
+                 // the recurrent snapshots are only guaranteed for batches of up to n_rs_seq + 1 tokens, so a longer draft uses its checkpoint
+-                const bool use_ckpt_tgt =
+-                    ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
+-                    (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && n_draft > llama_n_rs_seq(ctx_tgt));
++                const bool use_ckpt_tgt = spec_needs_target_checkpoint(n_draft);
+ 
+                 // check for partial draft acceptance
+                 if (n_rollback > 0) {
+@@ -4945,6 +4991,21 @@ private:
+ 
+                         return;
+                     }
++
++                    if (spec_target_ckpt_free) {
++                        if (trace > 0) {
++                            SLT_INF(slot, "accepted %2zu/%2zu draft tokens (snapshot rollback)\n", accepted.size() - 1, slot.spec_draft.size());
++                        }
++
++                        if (!spec_rollback_target_only(slot, accepted)) {
++                            // fail this request rather than continue from an unknown state
++                            SLT_ERR(slot, "snapshot rollback failed: n_draft=%zu n_rollback=%u\n", n_draft, n_rollback);
++                            send_error(slot, "speculative snapshot rollback failed");
++                            slot.release();
++                            slot.prompt_clear();
++                            return;
++                        }
++                    }
+                 }
+ 
+                 if (trace > 0) {

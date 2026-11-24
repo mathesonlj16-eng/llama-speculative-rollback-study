@@ -1,0 +1,4 @@
+plain: ok=True error=None prompt tokens evaluated per request=[6, 124, 4, 4, 7, 7]
+draft-keep: ok=True error=None prompt tokens evaluated per request=[6, 124, 4, 4, 7, 7]
+B keep vs plain, prompt cache on, slots=2: 6/6 identical
+B plain two-slot cached vs plain one-slot cached, same prompt text: 6/6 identical

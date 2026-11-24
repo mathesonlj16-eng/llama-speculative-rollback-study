@@ -1,0 +1,5 @@
+exact singles weight=blk.0.attn_qkv.weight type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x1 contiguous=1 | hint=0
+exact singles versus double-precision reference: max_abs_err=2.30988e-06 max_rel_err=5.66744e-08
+exact whole weight=blk.0.attn_qkv.weight type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x348 contiguous=1 | hint=0
+exact whole versus double-precision reference: max_abs_err=2.30988e-06 max_rel_err=5.66744e-08
+exact singles-vs-whole: input max diff=0 output max diff=0

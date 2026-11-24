@@ -1,0 +1,11 @@
+run,variant,wall_s,checkpoint_restores,snapshot_rollbacks,rollback_failures
+paired-s2-n3-r1,paired,7.9311350709999715,34,0,0
+paired-s2-n3-r2,paired,7.873358393999979,34,0,0
+paired-s2-n3-r3,paired,8.786654638000073,34,0,0
+paired-s2-n3-r4,paired,8.089260447000015,34,0,0
+paired-s2-n3-r5,paired,8.07923768600017,34,0,0
+prototype-s2-n3-r1,prototype,6.76758480400008,0,35,0
+prototype-s2-n3-r2,prototype,6.844414368999992,0,35,0
+prototype-s2-n3-r3,prototype,6.853164945999993,0,35,0
+prototype-s2-n3-r4,prototype,6.715299682000023,0,35,0
+prototype-s2-n3-r5,prototype,7.1348972499999945,0,35,0

@@ -1,0 +1,10 @@
+{
+  "upstream": "https://github.com/ggml-org/llama.cpp",
+  "historical_local_cuda": "418fe97b5f01b11eeb89f30d8a0459433edbf1d2",
+  "primary_experimental_base": "787a5612fceef602503e5f0ee6133cdc9b8a85c1",
+  "archived_local_prototype_commits": {
+    "paired_checkpoint": "28eb6dc734ddae1a214f243a2f18a0d036e0d62a",
+    "target_checkpoint_free": "a166ead4a3f18ffd79dface71b39cd1db4f27683",
+    "keep_draft": "5cd6c39b1e43bb1fc0c7654151d9bbf7b8eb93a9"
+  }
+}

@@ -1,0 +1,40 @@
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index ef3709a..abd1e7a 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -1109,6 +1109,13 @@ private:
+     common_context_seq_rm_type ctx_tgt_seq_rm_type = COMMON_CONTEXT_SEQ_RM_TYPE_NO;
+     common_context_seq_rm_type ctx_dft_seq_rm_type = COMMON_CONTEXT_SEQ_RM_TYPE_NO;
+ 
++    bool spec_needs_target_checkpoint(size_t n_draft) const {
++        // Rejection trims both contexts. A full-only draft needs paired restore and replay.
++        return ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
++               (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS &&
++                (ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL || n_draft > llama_n_rs_seq(ctx_tgt)));
++    }
++
+     common_speculative_ptr spec;
+ 
+     bool add_bos_token = true;
+@@ -3901,9 +3908,7 @@ private:
+             }
+ 
+             if (!draft.empty()) {
+-                const bool use_ckpt_tgt =
+-                    ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
+-                   (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && draft.size() > llama_n_rs_seq(ctx_tgt));
++                const bool use_ckpt_tgt = spec_needs_target_checkpoint(draft.size());
+ 
+                 const bool use_ckpt_dft =
+                    (ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && draft.size() > llama_n_rs_seq(ctx_dft));
+@@ -4913,9 +4918,7 @@ private:
+                 const uint32_t n_rollback = slot.spec_draft.size() + 1 - accepted.size();
+ 
+                 // the recurrent snapshots are only guaranteed for batches of up to n_rs_seq + 1 tokens, so a longer draft uses its checkpoint
+-                const bool use_ckpt_tgt =
+-                    ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL ||
+-                    (ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_RS && n_draft > llama_n_rs_seq(ctx_tgt));
++                const bool use_ckpt_tgt = spec_needs_target_checkpoint(n_draft);
+ 
+                 // check for partial draft acceptance
+                 if (n_rollback > 0) {

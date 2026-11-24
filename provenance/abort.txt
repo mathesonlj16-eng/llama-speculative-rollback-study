@@ -1,0 +1,3 @@
+0.14.219.592 E seq_rm: bounded rollback rejected (seq_id=0 p0=1 p1=2147483647 cell_pos=1 requested=1 rs_max=0 rs_idx=0 n_rs_seq=0)
+common/common.cpp:1639: failed to remove sequence in draft context: seq_id=0 p0=59 p1=-1 n_rs_seq=0
+0.15.692.361 E seq_rm: bounded rollback rejected (seq_id=0 p0=59 p1=2147483647 cell_pos=59 requested=1 rs_max=0 rs_idx=0 n_rs_seq=0)

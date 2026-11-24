@@ -1,0 +1,46 @@
+serial-paired-r1 ok wall=9.11s snap=0 ckpt=33
+serial-paired-r2 ok wall=9.18s snap=0 ckpt=33
+serial-paired-r3 ok wall=9.33s snap=0 ckpt=33
+serial-flagoff-r1 ok wall=9.54s snap=0 ckpt=33
+serial-flagoff-r2 ok wall=9.38s snap=0 ckpt=33
+serial-flagoff-r3 ok wall=9.79s snap=0 ckpt=33
+concurrent-paired-r1 ok wall=7.93s snap=0 ckpt=34
+concurrent-paired-r2 ok wall=8.09s snap=0 ckpt=34
+concurrent-paired-r3 ok wall=7.82s snap=0 ckpt=34
+concurrent-flagoff-r1 ok wall=7.93s snap=0 ckpt=34
+concurrent-flagoff-r2 ok wall=7.90s snap=0 ckpt=34
+concurrent-flagoff-r3 ok wall=8.01s snap=0 ckpt=34
+
+== serial
+serial-paired-r1 ok restores 33 admission 010101
+serial-paired-r2 ok restores 33 admission 010101
+serial-paired-r3 ok restores 33 admission 010101
+serial-flagoff-r1 ok restores 33 admission 010101
+serial-flagoff-r2 ok restores 33 admission 010101
+serial-flagoff-r3 ok restores 33 admission 010101
+serial-paired-r1 identical to paired-r1: 6/6
+serial-paired-r2 identical to paired-r1: 6/6
+serial-paired-r3 identical to paired-r1: 6/6
+serial-flagoff-r1 identical to paired-r1: 6/6
+serial-flagoff-r2 identical to paired-r1: 6/6
+serial-flagoff-r3 identical to paired-r1: 6/6
+admission 010101: 6 runs, variants ['flagoff', 'paired'], all tokens identical = True
+
+== concurrent
+concurrent-paired-r1 ok restores 34 admission 011010
+concurrent-paired-r2 ok restores 34 admission 101010
+concurrent-paired-r3 ok restores 34 admission 010101
+concurrent-flagoff-r1 ok restores 34 admission 100101
+concurrent-flagoff-r2 ok restores 34 admission 101001
+concurrent-flagoff-r3 ok restores 34 admission 010101
+concurrent-paired-r1 identical to paired-r1: 6/6
+concurrent-paired-r2 identical to paired-r1: 6/6
+concurrent-paired-r3 identical to paired-r1: 6/6
+concurrent-flagoff-r1 identical to paired-r1: 6/6
+concurrent-flagoff-r2 identical to paired-r1: 6/6
+concurrent-flagoff-r3 identical to paired-r1: 6/6
+admission 011010: 1 runs, variants ['paired'], all tokens identical = True
+admission 101010: 1 runs, variants ['paired'], all tokens identical = True
+admission 010101: 2 runs, variants ['flagoff', 'paired'], all tokens identical = True
+admission 100101: 1 runs, variants ['flagoff'], all tokens identical = True
+admission 101001: 1 runs, variants ['flagoff'], all tokens identical = True

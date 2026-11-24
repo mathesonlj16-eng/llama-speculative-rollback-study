@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="620.28pt" height="317.088pt" viewBox="0 0 620.28 317.088" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.0, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 317.088
+L 620.28 317.088
+L 620.28 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 29.455855 118.409788
+L 144.5256 118.409788
+Q 150.978109 118.409788 150.978109 111.626541
+L 150.978109 73.753412
+Q 150.978109 66.970165 144.5256 66.970165
+L 29.455855 66.970165
+Q 23.003345 66.970165 23.003345 73.753412
+L 23.003345 111.626541
+Q 23.003345 118.409788 29.455855 118.409788
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #236691; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 182.702945 118.409788
+L 284.329964 118.409788
+Q 290.782473 118.409788 290.782473 111.626541
+L 290.782473 73.753412
+Q 290.782473 66.970165 284.329964 66.970165
+L 182.702945 66.970165
+Q 176.250436 66.970165 176.250436 73.753412
+L 176.250436 111.626541
+Q 176.250436 118.409788 182.702945 118.409788
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #236691; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 322.507309 118.409788
+L 429.511418 118.409788
+Q 435.963927 118.409788 435.963927 111.626541
+L 435.963927 73.753412
+Q 435.963927 66.970165 429.511418 66.970165
+L 322.507309 66.970165
+Q 316.0548 66.970165 316.0548 73.753412
+L 316.0548 111.626541
+Q 316.0548 118.409788 322.507309 118.409788
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #236691; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 468.764182 118.409788
+L 589.211018 118.409788
+Q 595.663527 118.409788 595.663527 111.626541
+L 595.663527 73.753412
+Q 595.663527 66.970165 589.211018 66.970165
+L 468.764182 66.970165
+Q 462.311673 66.970165 462.311673 73.753412
+L 462.311673 111.626541
+Q 462.311673 118.409788 468.764182 118.409788
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #288268; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 99.358036 233.159718
+L 300.461236 233.159718
+Q 306.913745 233.159718 306.913745 226.376471
+L 306.913745 188.503341
+Q 306.913745 181.720094 300.461236 181.720094
+L 99.358036 181.720094
+Q 92.905527 181.720094 92.905527 188.503341
+L 92.905527 226.376471
+Q 92.905527 233.159718 99.358036 233.159718
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #be522d; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 327.8844 233.159718
+L 582.758509 233.159718
+Q 589.211018 233.159718 589.211018 226.376471
+L 589.211018 188.503341
+Q 589.211018 181.720094 582.758509 181.720094
+L 327.8844 181.720094
+Q 321.431891 181.720094 321.431891 188.503341
+L 321.431891 226.376471
+Q 321.431891 233.159718 327.8844 233.159718
+z
+" clip-path="url(#pd1710b2c00)" style="fill: #ffffff; stroke: #288268; stroke-width: 1.6; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 18px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172c3b" x="25.154182" y="31.358118" transform="rotate(-0 25.154182 31.358118)">One speculative round in a hybrid model</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(43.247759 89.850445)">Committed prefix</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(26.982134 101.048258)">Target and draft aligned</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(196.628955 89.850445)">Draft proposes</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(188.811767 101.048258)">a candidate suffix</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(340.637489 89.850445)">Target verifies</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(322.078895 101.048258)">candidates in a batch</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(472.986037 89.850445)">Commit verified prefix</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(471.471194 101.048258)">Advance both contexts</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 154.592352 92.972612
+Q 164.153498 92.972612 172.261201 92.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 168.261201 90.972612
+L 172.261201 92.972612
+L 168.261201 94.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 294.396715 92.972612
+Q 303.957862 92.972612 312.065564 92.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 308.065564 90.972612
+L 312.065564 92.972612
+L 308.065564 94.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 439.576726 92.972612
+Q 449.674139 92.972612 458.318107 92.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 454.318107 90.972612
+L 458.318107 92.972612
+L 454.318107 94.972612
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172c3b" x="375.740509" y="141.585882" transform="rotate(-0 375.740509 141.585882)">Rejected suffix requires state realignment</text>
+   </g>
+   <g id="patch_11">
+    <path d="M 373.768529 151.512464
+Q 287.827279 165.326892 203.321052 178.910652
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 207.587767 180.250482
+L 203.321052 178.910652
+L 206.952945 176.301178
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 377.627545 151.865672
+Q 415.532015 165.327614 452.066856 178.303126
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 448.966868 175.079762
+L 452.066856 178.303126
+L 447.628172 178.849098
+" style="fill: none; stroke: #172c3b; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(152.888543 204.600375)">Paired checkpoints</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(96.45573 215.798187)">Restore and replay each affected context</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(402.49958 199.001468)">Target snapshot path</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(357.482392 210.199281)">Trim within the anchored target ubatch</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; fill: #172c3b" transform="translate(348.526923 221.397093)">Draft still restores and replays on rejection</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172c3b" x="27.842727" y="268.206494" transform="rotate(-0 27.842727 268.206494)">Keep-draft retains draft work through verification, avoiding an unconditional restore and re-decode.</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172c3b" x="27.842727" y="286.860424" transform="rotate(-0 27.842727 286.860424)">The target snapshot is bounded by retained history. The draft has separate recurrent state.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pd1710b2c00">
+   <rect x="14.4" y="14.4" width="591.48" height="288.288"/>
+  </clipPath>
+ </defs>
+</svg>

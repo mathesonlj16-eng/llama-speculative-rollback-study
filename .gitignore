@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.gguf
+*.nsys-rep
+*.sqlite
+*.so
+*.tar.gz
+/build/
+/runs/
+/historical-src/
+/historical-build/
+/bench_baseline.json
+/bench_spec.json

@@ -1,0 +1,40 @@
+valid tensors: 659 of 1395
+
+first 30 valid tensors in execution order:
+    0 model.input_embed#0                GET_ROWS     2048x4x1x1/axis1         d=0 rel=0
+    4 norm-0#0                           RMS_NORM     2048x4x1x1/axis1         d=0 rel=0
+    5 attn_norm-0#0                      MUL          2048x4x1x1/axis1         d=0 rel=0
+   15 node_15#0                          MUL_MAT      6144x4x1x1/axis1         d=0 rel=0
+   30 conv_output_raw-0#0                SSM_CONV     6144x4x1x1/axis1         d=0 rel=0
+   31 conv_output_silu-0#0               UNARY        6144x4x1x1/axis1         d=0 rel=0
+   33 node_33#0                          RMS_NORM     128x16x4x1/axis2         d=0 rel=0
+   34 q_conv_predelta-0#0                SCALE        128x16x4x1/axis2         d=0 rel=0
+   36 node_36#0                          RMS_NORM     128x16x4x1/axis2         d=0 rel=0
+   37 k_conv_predelta-0#0                SCALE        128x16x4x1/axis2         d=0 rel=0
+   39 node_39#0                          MUL_MAT      16x4x1x1/axis1           d=0 rel=0
+   41 node_41#0                          ADD          16x4x1x1/axis1           d=0 rel=0
+   42 a_softplus-0#0                     UNARY        16x4x1x1/axis1           d=0 rel=0
+   43 gate-0#0                           MUL          16x4x1x1/axis1           d=0 rel=0
+   45 node_45#0                          MUL_MAT      16x4x1x1/axis1           d=0 rel=0
+   47 beta_sigmoid-0#0                   UNARY        1x16x4x1/axis2           d=0 rel=0
+   54 norm-0#1                           RMS_NORM     128x16x4x1/axis2         d=0 rel=0
+   55 node_55#0                          MUL          128x16x4x1/axis2         d=0 rel=0
+   56 z-0#0                              MUL_MAT      2048x4x1x1/axis1         d=0 rel=0
+   58 node_58#0                          UNARY        128x16x4x1/axis2         d=0 rel=0
+   59 node_59#0                          MUL          128x16x4x1/axis2         d=0 rel=0
+   61 linear_attn_out-0#0                MUL_MAT      2048x4x1x1/axis1         d=0 rel=0
+   62 attn_residual-0#0                  ADD          2048x4x1x1/axis1         d=0 rel=0
+   63 norm-0#2                           RMS_NORM     2048x4x1x1/axis1         d=0 rel=0
+   64 attn_post_norm-0#0                 MUL          2048x4x1x1/axis1         d=0 rel=0
+   65 ffn_gate-0#0                       MUL_MAT      6144x4x1x1/axis1         d=0 rel=0
+   66 ffn_up-0#0                         MUL_MAT      6144x4x1x1/axis1         d=0 rel=0
+   67 ffn_swiglu-0#0                     GLU          6144x4x1x1/axis1         d=0 rel=0
+   68 ffn_out-0#0                        MUL_MAT      2048x4x1x1/axis1         d=0 rel=0
+   69 l_out-0#0                          ADD          2048x4x1x1/axis1         d=0 rel=0
+
+first tensors exceeding relative thresholds:
+  rel>1e-06: 919 attn_output-15#0 MUL_MAT d=3.484e-05 rel=8.8e-05
+  rel>1e-05: 919 attn_output-15#0 MUL_MAT d=3.484e-05 rel=8.8e-05
+  rel>0.0001: 923 ffn_gate-15#0 MUL_MAT d=0.001992 rel=0.000391
+  rel>0.001: 926 ffn_out-15#0 MUL_MAT d=0.001824 rel=0.00222
+  rel>0.01: 1057 ffn_swiglu-17#0 GLU d=0.03589 rel=0.0104

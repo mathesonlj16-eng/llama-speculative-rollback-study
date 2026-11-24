@@ -1,0 +1,4 @@
+draft-paired-rs3: 2/6 prompts differ from plain | BREAK_ROLLBACK partial_calls=224 skipped=112
+draft-prototype: run failed (RuntimeError('/completion returned 500: b\'{"error":{"code":500,"message":"Invalid input batch.","type":"server_error"}}\'')) ['BREAK_ROLLBACK partial_calls=40 skipped=20']
+ngram-simple: 0/6 prompts differ from plain | BREAK_ROLLBACK partial_calls=24 skipped=12
+ngram-simple-rs8: run failed (RuntimeError('/completion returned 500: b\'{"error":{"code":500,"message":"Invalid input batch.","type":"server_error"}}\'')) ['BREAK_ROLLBACK partial_calls=2 skipped=1']

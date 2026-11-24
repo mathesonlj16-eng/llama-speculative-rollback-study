@@ -1,0 +1,7 @@
+config,key,shape,positions,max_abs_diff,median_max_abs_diff,top1_changes_vs_singles,largest_gen_gap,gap_at_11,gap_at_56
+cpu-default,seq8,whole,96,1.2148,0.3101,0,0.0000,0.0000,0.0000
+cpu-default,seq8,chunk64,96,1.0788,0.3041,0,0.0000,0.0000,0.0000
+cpu-default,seq8,singles-repeat,96,0.0000,0.0000,0,0.0000,0.0000,0.0000
+cpu-default,seq15,whole,96,2.9589,0.2657,1,1.3518,1.3518,0.0000
+cpu-default,seq15,chunk64,96,2.9833,0.2519,1,1.3040,1.3040,0.0000
+cpu-default,seq15,singles-repeat,96,0.0000,0.0000,0,0.0000,0.0000,0.0000

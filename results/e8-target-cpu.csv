@@ -1,0 +1,9 @@
+backend,scenario,rollback_cycles,seq_rm_ok,target_bit_equal,peer_bit_equal,target_max_abs_diff,peer_max_abs_diff
+target-cpu,anchored-d1-a0-r1,1,1,1,1,0,0
+target-cpu,anchored-d2-a0-r2,1,1,1,1,0,0
+target-cpu,anchored-d2-a1-r1,1,1,1,1,0,0
+target-cpu,anchored-d3-a0-r3,1,1,1,1,0,0
+target-cpu,anchored-d3-a1-r2,1,1,1,1,0,0
+target-cpu,anchored-d3-a2-r1,1,1,1,1,0,0
+target-cpu,repeat-full-reject-d3,3,1,1,1,0,0
+target-cpu,over-limit-r4-expected-refusal,1,0,NA,NA,NA,NA

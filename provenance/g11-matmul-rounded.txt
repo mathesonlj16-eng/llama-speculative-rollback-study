@@ -1,0 +1,5 @@
+rounded singles weight=blk.0.attn_qkv.weight type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x1 contiguous=1 | hint=0
+rounded singles versus double-precision reference: max_abs_err=0.0240722 max_rel_err=0.00082504
+rounded whole weight=blk.0.attn_qkv.weight type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x348 contiguous=1 | hint=0
+rounded whole versus double-precision reference: max_abs_err=0.0240722 max_rel_err=0.00082504
+rounded singles-vs-whole: input max diff=0 output max diff=0

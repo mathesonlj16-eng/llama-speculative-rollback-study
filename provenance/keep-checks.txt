@@ -1,0 +1,14 @@
+A keep build, keep flag off, slots=1 vs plain greedy: 6/6 identical
+A keep build, keep flag off, slots=1 vs prototype greedy: 6/6 identical
+A keep build, keep flag off, slots=2 vs plain greedy: 6/6 identical
+A keep build, keep flag off, slots=2 vs prototype greedy: 6/6 identical
+A keep build, no flags, slots=1 vs plain greedy: 6/6 identical
+B keep vs plain, prompt cache on, slots=1: 9/9 identical
+B slots=1 prompt tokens evaluated per request (keep run): [6, 4, 7, 9, 4, 7, 124, 4, 7]
+B plain with cache vs plain without cache (unextended prompts), slots=1: 6/6 identical
+B keep vs plain, prompt cache on, slots=2: run failed
+C keep on vs keep off, temperature 0.8 seed 7, slots=1: 6/6 identical
+C keep on vs keep off, temperature 0.8 seed 7, slots=2: 6/6 identical
+C control: plain sampled repeat: 6/6 identical
+C sampling active: plain sampled output differs from greedy on 3/6 prompts
+C information only: speculative sampled vs plain sampled identical on 6/6 prompts

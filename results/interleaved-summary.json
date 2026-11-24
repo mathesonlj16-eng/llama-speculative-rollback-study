@@ -1,0 +1,47 @@
+{
+  "paired": {
+    "ok": 5,
+    "walls": [
+      7.931,
+      7.873,
+      8.787,
+      8.089,
+      8.079
+    ],
+    "median": 8.07923768600017,
+    "minimum": 7.873358393999979,
+    "maximum": 8.786654638000073,
+    "rollbacks": [
+      34,
+      34,
+      34,
+      34,
+      34
+    ],
+    "failures": 0,
+    "distinct_outputs": 1
+  },
+  "prototype": {
+    "ok": 5,
+    "walls": [
+      6.768,
+      6.844,
+      6.853,
+      6.715,
+      7.135
+    ],
+    "median": 6.844414368999992,
+    "minimum": 6.715299682000023,
+    "maximum": 7.1348972499999945,
+    "rollbacks": [
+      35,
+      35,
+      35,
+      35,
+      35
+    ],
+    "failures": 0,
+    "distinct_outputs": 1
+  },
+  "median_wall_reduction_percent": 15.283908767035026
+}

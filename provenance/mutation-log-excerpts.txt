@@ -1,0 +1,12 @@
+mutation-results/draft-paired-rs3-s1-broken.log | BREAK_ROLLBACK partial_calls=224 skipped=112
+mutation-results/draft-prototype-s1-broken.log | 0.18.492.448 E srv        decode: Invalid input batch. off = 0, n_batch = 1024, ret = -1
+mutation-results/draft-prototype-s1-broken.log | 0.18.492.449 E srv    send_error: task id = 11, error: Invalid input batch.
+mutation-results/draft-prototype-s1-broken.log | 0.18.495.189 E srv  update_slots: decode() failed: Invalid input batch.
+mutation-results/draft-prototype-s1-broken.log | BREAK_ROLLBACK partial_calls=40 skipped=20
+mutation-results/ngram-simple-rs8-s1-broken.log | 0.17.191.037 E srv        decode: Invalid input batch. off = 0, n_batch = 1024, ret = -1
+mutation-results/ngram-simple-rs8-s1-broken.log | 0.17.191.038 E srv    send_error: task id = 0, error: Invalid input batch.
+mutation-results/ngram-simple-rs8-s1-broken.log | 0.17.193.066 E srv  update_slots: decode() failed: Invalid input batch.
+mutation-results/ngram-simple-rs8-s1-broken.log | BREAK_ROLLBACK partial_calls=2 skipped=1
+mutation-results/ngram-simple-s1-broken.log | BREAK_ROLLBACK partial_calls=24 skipped=12
+mutation2-results/ngram-mod-s1-broken.log | /tmp/q35-ajUJGm/base/common/common.cpp:1639: failed to remove sequence in target context: seq_id=0 p0=143 p1=-1 n_rs_seq=0
+mutation2-results/ngram-simple-s1-broken.log | /tmp/q35-ajUJGm/base/common/common.cpp:1639: failed to remove sequence in target context: seq_id=0 p0=36 p1=-1 n_rs_seq=0

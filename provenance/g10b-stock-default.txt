@@ -1,0 +1,5 @@
+stock-default singles weight=blk.0.attn_qkv.weight type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x1 contiguous=1 | hint=0
+stock-default singles versus double-precision reference: max_abs_err=0.0240722 max_rel_err=0.00082504
+stock-default whole weight=CUDA0#blk.0.attn_qkv.weight#0 type=q8_0 ne=2048x6144 extra=0 | input=attn_norm-0 type=f32 ne=2048x348 contiguous=1 | hint=0
+stock-default whole versus double-precision reference: max_abs_err=0.0278698 max_rel_err=0.00084755
+stock-default singles-vs-whole: input max diff=0 output max diff=0.00382423
