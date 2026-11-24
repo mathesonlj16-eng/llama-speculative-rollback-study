@@ -1,0 +1,56 @@
+== flag-off: concurrent outcome per arm (restores, token set, n_rs_seq)
+n131                   serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.75s
+n131                   concurrent n_rs=['3'] restores=[38, 38, 39, 39, 39, 39] tokens=['C-rerun', 'C-rerun-alt'] wall_med=8.94s
+   odd: concurrent-flagoff-r3 C-rerun-alt 38 23.366 p1@31 p4@18 p5@20
+n131-archcap           serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.58s
+n131-archcap           concurrent n_rs=['3'] restores=[38, 38, 39, 39, 39, 39] tokens=['C-rerun', 'C-rerun-alt'] wall_med=8.66s
+   odd: concurrent-flagoff-r1 C-rerun-alt 38 22.125 p1@31 p4@18 p5@20
+n131-nocap             serial     n_rs=['0'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.33s
+n131-nocap             concurrent n_rs=['0'] restores=[34, 34, 34, 34, 34, 34] tokens=['C-archive'] wall_med=8.02s
+n132                   serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.69s
+n132                   concurrent n_rs=['3'] restores=[38, 39, 39, 39, 39, 39] tokens=['C-rerun'] wall_med=8.76s
+n132-archcap           serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.66s
+n132-archcap           concurrent n_rs=['3'] restores=[38, 39, 39, 39, 39, 39] tokens=['C-rerun', 'C-rerun-alt'] wall_med=8.58s
+   odd: concurrent-paired-r3 C-rerun-alt 38 25.856 p1@31 p4@18 p5@20
+n132-nocap             serial     n_rs=['0'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.47s
+n132-nocap             concurrent n_rs=['0'] restores=[34, 34, 34, 34, 34, 34] tokens=['C-archive'] wall_med=8.21s
+orig                   serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.73s
+orig                   concurrent n_rs=['3'] restores=[39, 39, 39, 39, 39, 39] tokens=['C-rerun'] wall_med=8.86s
+orig-archcap           serial     n_rs=['3'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=10.11s
+orig-archcap           concurrent n_rs=['3'] restores=[38, 39, 39, 39, 39, 39] tokens=['C-rerun'] wall_med=8.55s
+orig-nocap             serial     n_rs=['0'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.41s
+orig-nocap             concurrent n_rs=['0'] restores=[34, 34, 34, 34, 34, 34] tokens=['C-archive'] wall_med=8.12s
+archive-2026-11-23     serial     n_rs=['0'] restores=[33, 33, 33, 33, 33, 33] tokens=['S-archive'] wall_med=9.35s
+archive-2026-11-23     concurrent n_rs=['0'] restores=[34, 34, 34, 34, 34, 34] tokens=['C-archive'] wall_med=7.93s
+== admission
+n131   delay   0 ms: ok 6/6 gaps 0.0-22.0 restores [38, 39] tokens ['C-rerun']
+n131   delay  21 ms: ok 6/6 gaps 22.5-108.0 restores [37, 38] tokens ['C-rerun']
+n131   delay 100 ms: ok 6/6 gaps 113.6-239.8 restores [35, 37] tokens ['C-rerun']
+n132   delay   0 ms: ok 6/6 gaps 0.0-0.0 restores [39] tokens ['C-rerun']
+n132   delay  21 ms: ok 6/6 gaps 22.6-104.8 restores [37, 38] tokens ['C-rerun']
+n132   delay 100 ms: ok 6/6 gaps 109.1-206.5 restores [35, 37] tokens ['C-rerun']
+orig   delay   0 ms: ok 6/6 gaps 0.0-0.0 restores [39] tokens ['C-rerun']
+orig   delay  21 ms: ok 6/6 gaps 23.4-119.6 restores [37, 38] tokens ['C-rerun']
+orig   delay 100 ms: ok 6/6 gaps 112.4-220.9 restores [35, 37] tokens ['C-rerun']
+== interleaved
+{'arm': 'n131', 'paired_median_s': 8.379, 'prototype_median_s': 6.847, 'reduction_percent': 18.3, 'paired_restores': '39 39 39 39 39', 'prototype_rollbacks': '35 35 35 35 35', 'paired_walls': '8.268 8.28 8.443 8.404 8.379', 'prototype_walls': '6.614 6.715 6.88 6.932 6.847', 'failures': 0, 'distinct_outputs': '1/1'}
+{'arm': 'n131-nocap', 'paired_median_s': 7.963, 'prototype_median_s': 6.674, 'reduction_percent': 16.2, 'paired_restores': '34 34 34 34 34', 'prototype_rollbacks': '35 35 35 35 35', 'paired_walls': '7.845 7.957 8.33 7.963 7.964', 'prototype_walls': '6.664 6.674 6.645 6.714 6.717', 'failures': 0, 'distinct_outputs': '1/1'}
+{'arm': 'n132', 'paired_median_s': 8.49, 'prototype_median_s': 6.742, 'reduction_percent': 20.6, 'paired_restores': '39 39 39 39 39', 'prototype_rollbacks': '35 35 35 35 35', 'paired_walls': '8.219 8.604 8.523 8.362 8.49', 'prototype_walls': '6.708 6.659 6.742 7.085 6.958', 'failures': 0, 'distinct_outputs': '1/1'}
+{'arm': 'n132-nocap', 'paired_median_s': 7.86, 'prototype_median_s': 6.769, 'reduction_percent': 13.9, 'paired_restores': '34 34 34 34 34', 'prototype_rollbacks': '35 35 35 35 35', 'paired_walls': '7.966 7.989 7.834 7.813 7.86', 'prototype_walls': '6.723 6.668 6.909 6.769 6.808', 'failures': 0, 'distinct_outputs': '1/1'}
+{'arm': 'orig', 'paired_median_s': 8.505, 'prototype_median_s': 6.929, 'reduction_percent': 18.5, 'paired_restores': '39 39 39 39 39', 'prototype_rollbacks': '35 35 35 35 35', 'paired_walls': '8.702 8.318 8.505 8.352 9.048', 'prototype_walls': '6.759 6.694 7.005 6.948 6.929', 'failures': 0, 'distinct_outputs': '1/1'}
+== reverse stagger (prompt 0 delayed)
+n131-cap   delay   0 ms: ok 6/6 gaps 0.0-0.0 restores [39] tokens {'C-rerun': 6}
+n131-cap   delay  10 ms: ok 6/6 gaps 21.8-50.4 restores [38] tokens {'C-rerun-alt': 6}
+n131-cap   delay  21 ms: ok 6/6 gaps 21.8-104.2 restores [37, 38] tokens {'C-rerun-alt': 6}
+n131-cap   delay  30 ms: ok 6/6 gaps 96.4-131.6 restores [37] tokens {'C-rerun-alt': 6}
+n131-cap   delay  50 ms: ok 6/6 gaps 95.1-115.8 restores [37] tokens {'C-rerun-alt': 6}
+n132-cap   delay   0 ms: ok 6/6 gaps 0.0-23.2 restores [38, 39] tokens {'C-rerun': 5, 'C-rerun-alt': 1}
+n132-cap   delay  10 ms: ok 6/6 gaps 22.2-67.9 restores [38] tokens {'C-rerun-alt': 6}
+n132-cap   delay  21 ms: ok 6/6 gaps 21.7-114.5 restores [37, 38] tokens {'C-rerun-alt': 6}
+n132-cap   delay  30 ms: ok 6/6 gaps 31.2-161.3 restores [37, 38] tokens {'C-rerun-alt': 6}
+n132-cap   delay  50 ms: ok 6/6 gaps 51.5-267.6 restores [37, 38] tokens {'C-rerun-alt': 6}
+n132-nocap delay   0 ms: ok 6/6 gaps 0.0-34.2 restores [34, 36] tokens {'C-archive': 5, 'new-6e86f030d727': 1}
+n132-nocap delay  10 ms: ok 6/6 gaps 20.8-35.0 restores [36] tokens {'new-6e86f030d727': 6}
+n132-nocap delay  21 ms: ok 6/6 gaps 23.3-97.0 restores [35, 36] tokens {'new-6e86f030d727': 6}
+n132-nocap delay  30 ms: ok 6/6 gaps 59.1-116.5 restores [35, 36] tokens {'new-6e86f030d727': 6}
+n132-nocap delay  50 ms: ok 6/6 gaps 96.8-120.8 restores [35] tokens {'new-6e86f030d727': 6}

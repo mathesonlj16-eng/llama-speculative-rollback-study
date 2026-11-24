@@ -1,0 +1,11 @@
+comparison,positions,bit_identical,max_abs_diff,median_rms,top1_flips,min_margin_at_flip
+rs:n131:singles:rs0-vs-rs3,288,288,0,0,0,nan
+rs:n131:pair4:rs0-vs-rs3,288,192,0.3782,0,3,0.000793
+repeat:n131:pair4:rs0-vs-phase1,288,288,0,0,0,nan
+rs:n132:singles:rs0-vs-rs3,288,288,0,0,0,nan
+rs:n132:pair4:rs0-vs-rs3,288,192,0.3782,0,3,0.000793
+repeat:n132:pair4:rs0-vs-phase1,288,288,0,0,0,nan
+toolkit:n131-vs-n132:singles:rs0,288,288,0,0,0,nan
+toolkit:n131-vs-n132:pair4:rs0,288,288,0,0,0,nan
+toolkit:n131-vs-n132:singles:rs3,288,288,0,0,0,nan
+toolkit:n131-vs-n132:pair4:rs3,288,288,0,0,0,nan

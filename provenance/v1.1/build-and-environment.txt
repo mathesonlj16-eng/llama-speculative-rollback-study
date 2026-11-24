@@ -1,0 +1,126 @@
+== toolchains
+Build cuda_13.1.r13.1/compiler.37061995_0
+Build cuda_13.2.r13.2/compiler.37953736_0
+cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+cmake version 4.2.3
+runtime libraries resolved by all arms (ld.so.conf -> /usr/local/cuda -> /usr/local/cuda-13.2):
+libcublas.so.13.4.1.3
+
+== CUDA compiler per build
+/var/tmp/llama-release-nnulTI/runs/cuda/build-stock: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.2/bin/nvcc
+/var/tmp/llama-release-nnulTI/runs/cuda/build-paired: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.2/bin/nvcc
+/var/tmp/llama-release-nnulTI/runs/cuda/build-prototype: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.2/bin/nvcc
+/var/tmp/llama-v11/cuda131/build-stock: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.1/bin/nvcc
+/var/tmp/llama-v11/cuda131/build-paired: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.1/bin/nvcc
+/var/tmp/llama-v11/cuda131/build-prototype: CMAKE_CUDA_COMPILER:FILEPATH=/usr/local/cuda-13.1/bin/nvcc
+archive /var/tmp/q35-slots-KXUA: CMAKE_CUDA_COMPILER:STRING=/usr/local/cuda-13.1/bin/nvcc
+
+== GGML_* cache options identical between fresh 13.1 and retained 13.2 stock builds:
+yes
+
+== source revision
+/var/tmp/llama-v11/cuda131/src-stock 787a5612fceef602503e5f0ee6133cdc9b8a85c1 
+/var/tmp/llama-v11/cuda131/src-paired 787a5612fceef602503e5f0ee6133cdc9b8a85c1  1 file changed, 9 insertions(+), 6 deletions(-)
+/var/tmp/llama-v11/cuda131/src-prototype 787a5612fceef602503e5f0ee6133cdc9b8a85c1  2 files changed, 69 insertions(+), 6 deletions(-)
+
+== device code (cuobjdump -sass, addresses and internal namespace hashes removed)
+3fd9d9d0fdd982c8f77a924382875dd4b23920466168a9ee2ba72984bcbefbbb  n131.norm
+3c21d19f577e7920fbbf29e4f2a24e124add8a54fdced38b0ae023d6506dca1e  n132.norm
+3fd9d9d0fdd982c8f77a924382875dd4b23920466168a9ee2ba72984bcbefbbb  orig.norm
+orig vs fresh 13.1: identical
+13.1 vs 13.2 (by kernel name):
+    178 mul_mat_q
+     40 flash_attn_tile
+     33 mul_mat_vec_q
+     32 mul_mat_q_stream_k_fixup
+     30 unary_op_kernel_strided
+     30 unary_op_kernel
+     21 flash_attn_ext_f16
+     16 mul_mat_f_ids
+      9 flash_attn_ext_vec
+      7 mul_mat_vec_q_moe
+  ... (603 of 7210 common kernel names differ; 26/25 names present in only one build, CUB versions)
+
+== binaries (sha256, before and after the experiments; unchanged = yes)
+d2edfb6f1e4a86729911c26905a8b11dad1162c4acff23412e28162dfb53c54d  llama-server n132/stock
+df1de93bf5dade8036ce8dad615adcdbaf1fb7a34be0077a71205c65b494a111  libllama-server-impl.so n132/stock
+44fc8f77f809ae3d0c13af2d82127605350d6fc3f7819df9b50136a4019f4d67  libllama-common.so.1.0.0 n132/stock
+03877a61c576cffcefa391f150afef66b7f42ac8f8d2ff236f8271b85ac3da44  libllama.so.1.0.0 n132/stock
+499db830a5fc6b56a834a720a7da7f33eb5cfb8662dd58281f8c4b82d5fbd06b  libggml-base.so.1.0.0 n132/stock
+a9141db04fff6080550b5124f43c3bb19fa3d78e6ca5c597a6c31c7f1fb86078  libggml-cpu.so.1.0.0 n132/stock
+c2fa2cb190add83f2faca2901f1cec05fa315675372ef1573ec1a231ea0c5ae6  libggml-cuda.so.1.0.0 n132/stock
+8a0a25180790acbbcaafac3e5cadbd338dc9601a896a9f1e305589faf40f2154  llama-server n132/paired
+7476981f33ff1f4fbd6227fe9bcff5a0187d32e02a5729e4a6b9262c76e071bb  libllama-server-impl.so n132/paired
+22f7091619fbfec37c43ff69945e0774f78f905028b7e2aa10d0388c1e08d0b9  libllama-common.so.1.0.0 n132/paired
+0114997a78d9865ba351ef015443925906f507a980a3a699574a73f5053920ef  libllama.so.1.0.0 n132/paired
+871710137ca4ac35264c5c99db9b3377d3c397d30c7785d22265ecd859ae5d76  libggml-base.so.1.0.0 n132/paired
+3ce454b5bf47472794c1dda70cd95deafa22d13106eb616923424256a5b7fc08  libggml-cpu.so.1.0.0 n132/paired
+8737e37fe3e3e26fee9da4b29ed8892e6805496c5d80258f3e8877efda0c0009  libggml-cuda.so.1.0.0 n132/paired
+7b387812866ea06f7fc23a25f682a6b1d0f9706820f03ba5ec084e9f2122e83b  llama-server n132/prototype
+8f61994b977f734b5927afbe34f3e645e4382e0bdb564a98115d613027efb3b9  libllama-server-impl.so n132/prototype
+23e7a24838a8e35e22d43db0f8b568ffb7b2d33537f736eed82f6a79cd4f41b6  libllama-common.so.1.0.0 n132/prototype
+5107ee0f7388cf5a3f22c1d105c18c2ff6b941228692c7df97cafec73fc4072e  libllama.so.1.0.0 n132/prototype
+d918da9230f324e2954b627f1c3f659e41dbfb439b14ceff785163c4691f5910  libggml-base.so.1.0.0 n132/prototype
+42d2cfe158cbd5e33a93437389104fc78e0a71dbc45aa2931fcb554321d59cfe  libggml-cpu.so.1.0.0 n132/prototype
+bb42ee19537736cc90c0eb0e6aa3958b47dfe7fc0f511d4f0351af0c6f5821ac  libggml-cuda.so.1.0.0 n132/prototype
+7b28ea4e298642d1ea0c26638a14a02258dcceba2fce9b1216f3e68c4c261d83  llama-server n131/stock
+f2fae596ef52ac25cbd3c7b2f75bc55a45bdb1d755ba7a0d4b86b7290feab385  libllama-server-impl.so n131/stock
+6952a9a4e141aabbfdfa6fc5e1e82ff47e9299fea1d887911fbfa01385209214  libllama-common.so.1.0.0 n131/stock
+7e566610d8bda312a4954d31aad44686cc9e8e4258764fd20c8786c38931ab35  libllama.so.1.0.0 n131/stock
+091d2d441078f60b9939e60d46f86bbb391f11959b765f324e0fa679a0c0c549  libggml-base.so.1.0.0 n131/stock
+1bfd0b0ba9d2aa3ca25bd8b88e3cd2d800247f22632954027a6c7fd45b860fec  libggml-cpu.so.1.0.0 n131/stock
+7446da05c323866a4c8c205557b471248d8cc29bb439ae9a9928a3a968cbe406  libggml-cuda.so.1.0.0 n131/stock
+a1345db971b6717c62b340c3a720d86caea40716361e0a338e3f843c9416fda2  llama-server n131/paired
+f081f7dd79bcae9a5bf4c7004f42c44de51f16535b3680c0904c0ecae7c2d565  libllama-server-impl.so n131/paired
+445d9c4dd9605b117aec07057fde25921bfb5d690ab020a119e4d066ab624168  libllama-common.so.1.0.0 n131/paired
+76f0697d573ecd163a221769edade7fa6980cf28b9b47b2b6713b30f7529a2bf  libllama.so.1.0.0 n131/paired
+a6d8d0524929e06c04743842c6df810aed510892044f321ac5d367b0f070e30a  libggml-base.so.1.0.0 n131/paired
+ba107c8fe625ee7c279e1568113befcb095f51b24d156800c4462de18f4cd714  libggml-cpu.so.1.0.0 n131/paired
+8bad8845817e85c4f69ed26dfa41a2d11451735018072b9f35a279ac529dabd8  libggml-cuda.so.1.0.0 n131/paired
+869ab915796531dafa143aeac89bdbc0c7ecf5605503e5127288c9ad5fd190af  llama-server n131/prototype
+4af81b0d4108c27ef0a134fb13cb5aca5167b95297a48e0624bfec0d13c4edf6  libllama-server-impl.so n131/prototype
+7ebcec2d26d0c69015eaac173ee4a82e847abf91f08dd6010ef794c0150e140a  libllama-common.so.1.0.0 n131/prototype
+c49cf6ba7ccdc6c28e3886c462b14e812f4334e854f23dc70b9e99f9cdf5811d  libllama.so.1.0.0 n131/prototype
+ae46b588953612cafa9a0022b5bbd31aaa63451125d62d474498397ea400e858  libggml-base.so.1.0.0 n131/prototype
+6653345b01ec8e6a14175e15652b818407db4ffcb1038e18d85e536a346c76d6  libggml-cpu.so.1.0.0 n131/prototype
+21f6a8a8712d3be0c7c44d32a117b953af7d3159c60eac407fb2c040b9fa0483  libggml-cuda.so.1.0.0 n131/prototype
+1f4729dca9f8b823187462bfa3dae3307fa10415a13a728a76b1142b8bb4304f  llama-server orig/stock
+8a54e59b82641afa74b9d165fa6be47d80ad1ec1a1db3ec933de51dc79b3c0de  libllama-server-impl.so orig/stock
+01c38ab9f122aed9f541c3ddcb64b054130a8ffb1f9a50069fed1493e64485d8  libllama-common.so.1.0.0 orig/stock
+98674e469d074b2fbb34cc76b0895d3c7f19b0ee0a5ddc8b4bc0b22afee44ae1  libllama.so.1.0.0 orig/stock
+8659f19a98cec673df6b1d07925f36fb1d54256b79285c6dc3423b6a11a6d7bc  libggml-base.so.1.0.0 orig/stock
+e8cce4d73eb799cdaa3da2e6234a11dc61273e3501fd7003cb5f514f303dd6c1  libggml-cpu.so.1.0.0 orig/stock
+d40b8e04ff97c615218f6abfeeaa588bcc75bbcc684f2321b61943945c97843d  libggml-cuda.so.1.0.0 orig/stock
+1f4729dca9f8b823187462bfa3dae3307fa10415a13a728a76b1142b8bb4304f  llama-server orig/paired
+ca54f000e2f8a2e4da92bd8acc83901079adaadbd48ce1ddc7c51dbc330eb13b  libllama-server-impl.so orig/paired
+01c38ab9f122aed9f541c3ddcb64b054130a8ffb1f9a50069fed1493e64485d8  libllama-common.so.1.0.0 orig/paired
+98674e469d074b2fbb34cc76b0895d3c7f19b0ee0a5ddc8b4bc0b22afee44ae1  libllama.so.1.0.0 orig/paired
+8659f19a98cec673df6b1d07925f36fb1d54256b79285c6dc3423b6a11a6d7bc  libggml-base.so.1.0.0 orig/paired
+e8cce4d73eb799cdaa3da2e6234a11dc61273e3501fd7003cb5f514f303dd6c1  libggml-cpu.so.1.0.0 orig/paired
+d40b8e04ff97c615218f6abfeeaa588bcc75bbcc684f2321b61943945c97843d  libggml-cuda.so.1.0.0 orig/paired
+1f4729dca9f8b823187462bfa3dae3307fa10415a13a728a76b1142b8bb4304f  llama-server orig/prototype
+802946d2d002c03f6205d977d658de7f9724e2bb8b7f771419ec9529045c9cf0  libllama-server-impl.so orig/prototype
+c396ab3e81d47c95c747f9ef04c49de82d19daf820e589ba617bf81f208b3e07  libllama-common.so.1.0.0 orig/prototype
+98674e469d074b2fbb34cc76b0895d3c7f19b0ee0a5ddc8b4bc0b22afee44ae1  libllama.so.1.0.0 orig/prototype
+8659f19a98cec673df6b1d07925f36fb1d54256b79285c6dc3423b6a11a6d7bc  libggml-base.so.1.0.0 orig/prototype
+e8cce4d73eb799cdaa3da2e6234a11dc61273e3501fd7003cb5f514f303dd6c1  libggml-cpu.so.1.0.0 orig/prototype
+d40b8e04ff97c615218f6abfeeaa588bcc75bbcc684f2321b61943945c97843d  libggml-cuda.so.1.0.0 orig/prototype
+
+== preload shims
+f3d2d51961795ea5512cbf105c237169786aca68fcbb0576b6964b98620f939c  /var/tmp/q35-eval-CTpjja/cap.so
+200597cb0d91f7a068d6b915855bc7b6a3a3c523af1fb9b87daac3197742e169  /var/tmp/llama-v11/caps/nocap.so
+7ac277f8469b76feea6f9a1e040a2aaf45e696dccb2460806cccc2db01188b4c  release run.sh cap.so
+
+== dynamic-linker bindings (orig paired server, LD_DEBUG=bindings)
+== archive-cap
+0.12.617.252 I srv    load_model: speculative rollback: target n_rs_seq=3 rm_type=3, draft n_rs_seq=0 rm_type=2
+      1 	binding file /var/tmp/llama-v11/caps/archive-cap.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_init_from_model'
+      1 	binding file /var/tmp/llama-v11/caps/archive-cap.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_model_n_params'
+      1 	binding file /var/tmp/q35-slots-KXUA/fixed/libllama-common.so.1 [0] to /var/tmp/llama-v11/caps/archive-cap.so [0]: normal symbol `llama_init_from_model'
+      1 	binding file /var/tmp/q35-slots-KXUA/fixed/libllama-server-impl.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_model_n_params'
+== release-cap
+0.11.974.071 I srv    load_model: speculative rollback: target n_rs_seq=3 rm_type=3, draft n_rs_seq=0 rm_type=2
+      1 	binding file /var/tmp/llama-v11/runs/orig-flagoff/cap.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_init_from_model'
+      1 	binding file /var/tmp/llama-v11/runs/orig-flagoff/cap.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_model_n_params'
+      1 	binding file /var/tmp/q35-slots-KXUA/fixed/libllama-common.so.1 [0] to /var/tmp/llama-v11/runs/orig-flagoff/cap.so [0]: normal symbol `llama_init_from_model'
+      1 	binding file /var/tmp/q35-slots-KXUA/fixed/libllama-server-impl.so [0] to /var/tmp/q35-slots-KXUA/fixed/libllama.so.1 [0]: normal symbol `llama_model_n_params'

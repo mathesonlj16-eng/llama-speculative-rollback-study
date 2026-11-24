@@ -32,6 +32,8 @@ src="$root/src-stock"
 lib="$root/build-stock/bin"
 compile=(g++ -std=c++20 -O2 -I"$src/include" -I"$src/ggml/include" -I"$src/src" -L"$lib" -Wl,-rpath-link,"$lib")
 "${compile[@]}" -shared -fPIC "$repo/scripts/fixtures/cap.cpp" -o "$out/cap.so" -ldl
+# v1.1.0: optionally replace the target-capacity preload (e.g. scripts/v1.1/nocap.cpp built as a shared object)
+if [[ -n ${CAP_OVERRIDE:-} ]]; then cp "$CAP_OVERRIDE" "$out/cap.so"; fi
 "${compile[@]}" -shared -fPIC "$out/gap-trace/useref.cpp" -o "$out/useref.so" -lggml-cpu -lggml-base -ldl
 "${compile[@]}" -shared -fPIC "$out/slowdown/prof.cpp" -o "$out/prof.so" -ldl -pthread
 case "$experiment" in
@@ -55,6 +57,7 @@ case "$experiment" in
     interleaved) python3 "$out/target-ckpt-free/interleaved-throughput.py" "$out/cap.so";;
     flagoff) python3 "$out/target-ckpt-free/flag-off-control.py" "$out/cap.so";;
     admission) python3 "$repo/scripts/fixtures/admission-control.py" "$out/target-ckpt-free" "$out/cap.so";;
+    reverse) python3 "$repo/scripts/v1.1/reverse-admission.py" "$out/target-ckpt-free" "$out/cap.so";;
     ngram) python3 "$out/ngram/ngram-eval.py" "$out/cap.so";;
     rollback)
         for fixture in rollback-anchored rollback-controls; do

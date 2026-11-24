@@ -103,4 +103,37 @@ odd = [r for r in reruns if r["schedule"] == "concurrent" and r["token_arrays_sh
 assert [(r["variant"], r["run"], r["target_checkpoint_restores"]) for r in odd] == [("flagoff", "r1", "38")]
 assert any(abs(float(r["first_pair_gap_ms"]) - float(odd[0]["first_pair_gap_ms"])) < 3 and
            r["target_checkpoint_restores"] == "38" for r in forced)
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points and rerun controls verified.")
+# v1.1.0: toolkit, target-capacity and admission-order controls
+C_ARCHIVE, C_RERUN = "437590e44d3a", "9170e15579ce"
+fm = csv_rows("v1.1/flagoff-matrix.csv")
+assert len(fm) == 120 and all(r["ok"] == "1" for r in fm)
+assert {r["tokens"] for r in fm if r["run"].startswith("serial")} == {"S-archive"}
+for r in fm:
+    if r["run"].startswith("concurrent"):
+        if r["target_n_rs_seq"] == "0":   # archive and no-op shim arms on every build
+            assert r["token_arrays_sha256"].startswith(C_ARCHIVE) and r["restores"] == "34", r
+        else:                             # capacity 3: default set, or the alternative set after prompt 1 led
+            assert r["tokens"] in ("C-rerun", "C-rerun-alt"), r
+            assert (r["tokens"] == "C-rerun-alt") == (r["admission"][0] == "1" and float(r["first_pair_gap_ms"]) >= 15), r
+assert sum(r["target_n_rs_seq"] == "0" and r["run"].startswith("concurrent") and r["arm"] != "archive-2026-11-23" for r in fm) == 18
+rv = csv_rows("v1.1/reverse-admission-matrix.csv")
+assert len(rv) == 90 and all(r["ok"] == "1" for r in rv)
+for r in rv:
+    if int(r["delay_ms"]) >= 10:
+        assert r["tokens"] == ("C-rerun-alt" if r["arm"].endswith("-cap") else "new-6e86f030d727"), r
+am = csv_rows("v1.1/admission-matrix.csv")
+assert len(am) == 54 and all(r["ok"] == "1" and r["token_arrays_sha256"].startswith(C_RERUN) for r in am)
+for name in ("logit-toolkit-and-shape.csv", "logit-capacity.csv"):
+    for r in csv_rows(f"v1.1/{name}"):
+        if r["comparison"].split(":")[0] in ("toolkit", "build", "repeat") or r["comparison"].endswith(":singles:rs0-vs-rs3"):
+            assert r["bit_identical"] == r["positions"] == "288", r
+        else:
+            assert int(r["bit_identical"]) < 288, r
+for r in csv_rows("v1.1/interleaved-matrix.csv"):
+    p, q = float(r["paired_median_s"]), float(r["prototype_median_s"])
+    assert abs(100 * (1 - q / p) - float(r["reduction_percent"])) < .06 and r["failures"] == "0"
+    assert set(r["paired_restores"].split()) == ({"34"} if r["arm"].endswith("nocap") else {"39"})
+audit = [r for r in csv_rows("v1.1/archive-capacity-audit.csv") if r["slots"] == "2" and
+         ("flag-off-control-results/concurrent" in r["log"] or "interleaved-results/paired" in r["log"] or "eval-results/paired-s2-n3" in r["log"])]
+assert len(audit) == 14 and all((r["target_n_rs_seq"], r["checkpoint_restores"]) in (("0", "34"), ("3", "39")) for r in audit)
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun and v1.1.0 controls verified.")

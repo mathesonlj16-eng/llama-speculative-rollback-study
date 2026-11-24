@@ -39,7 +39,24 @@ for experiment in profile performance interleaved flagoff admission ngram rollba
 done
 ```
 
-The admission control repeats the flag-off comparison while delaying the second request of the first pair. Set `ADMISSION_DELAYS_MS` (default `0,21,100`) and `ADMISSION_REPEATS` (default 3) to change the arms. The server admits requests at its own step boundaries, so the record keeps the measured gap from the server log. The 2026-11-24 rerun used CUDA 13.2.86. Its serial runs matched the archive, while concurrent two-slot token sequences and restore modes differed from the CUDA 13.1 archive. Compare concurrent CUDA outputs against controls from the same run. Keep timed experiments away from concurrent compilation and host sleep.
+The admission control repeats the flag-off comparison while delaying the second request of the first pair. Set `ADMISSION_DELAYS_MS` (default `0,21,100`) and `ADMISSION_REPEATS` (default 3) to change the arms. The server admits requests at its own step boundaries, so the record keeps the measured gap from the server log. The 2026-11-24 rerun used CUDA 13.2.86. Its serial runs matched the archive, while concurrent two-slot token sequences and restore modes differed from the CUDA 13.1 archive. Compare concurrent CUDA outputs against controls from the same run. Keep timed experiments away from concurrent compilation and host sleep. v1.1.0 traced that difference to the target snapshot capacity (`target n_rs_seq=` in each server log), not to the toolkit.
+
+### v1.1.0 toolkit and capacity controls
+
+```bash
+# Clean builds with an explicit toolkit (13.1 with GCC 15 needs your own patched crt/math_functions.h, see the script header)
+CUDA_HOME=/usr/local/cuda-13.1 CUDA_HEADER_OVERRIDE=/path/to/patched/math_functions.h \
+    bash scripts/v1.1/build-cuda131.sh "$STUDY_RUNS/cuda131"
+# Same harness on each build root: default capacity shim (target n_rs_seq=3)
+for experiment in flagoff admission interleaved reverse; do
+    bash scripts/run.sh "$STUDY_RUNS/cuda131" "$STUDY_RUNS/131-$experiment" "$TARGET" "$DRAFT" "$experiment"
+done
+# No-op shim: the target keeps capacity 0, as in the archived flag-off and interleaved runs
+g++ -std=c++20 -O2 -shared -fPIC scripts/v1.1/nocap.cpp -o "$STUDY_RUNS/nocap.so"
+CAP_OVERRIDE="$STUDY_RUNS/nocap.so" bash scripts/run.sh "$STUDY_RUNS/cuda" "$STUDY_RUNS/132-flagoff-nocap" "$TARGET" "$DRAFT" flagoff
+```
+
+`reverse` delays prompt 0 (slot 0) of the first pair by `ADMISSION_DELAYS_MS` (default `0,10,21,30,50`), so prompt 1 starts alone. `scripts/v1.1/logit-dump.cpp` writes teacher-forced logits for a token TSV in one of five batch shapes (`singles`, `whole`, `c4`, `c8`, `pair4`; set `N_RS` for target capacity). `scripts/v1.1/logit-cmp.cpp` compares two dumps position by position. Build both against the stock build's headers and libraries, then select the library under test with `LD_LIBRARY_PATH`. `scripts/v1.1/admission-timeline.py` classifies concurrent runs by which slot launched first and the gap before the second. The compact results are in `results/v1.1/`. Raw run directories, logs, 13.1 binaries and the analysis scripts are archived outside this repository, with checksums.
 
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
