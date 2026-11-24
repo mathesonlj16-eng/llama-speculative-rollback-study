@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.1.0 (candidate, unreleased)
+## v1.1.0 (2026-11-24)
 
 Investigates whether the CUDA toolkit change (13.1.115 to 13.2.86) explains the concurrent token and restore-count differences reported in v1.0.0. It doesn't.
 
