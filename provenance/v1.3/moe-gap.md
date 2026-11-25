@@ -32,7 +32,7 @@ Expected on other GPUs, from the code and not tested:
 - The F16/BF16 token limits in `should_use_mmf` don't depend on the architecture. So Ampere and later should also fail for F16/BF16 MoE with more than 128 tokens (rows > 1024) or more than 512 tokens.
 - Pre-Volta GPUs should fail for F16 MoE at any N whenever fast FP16 is available.
 
-## Candidate fixes tested (diagnostic, env-guarded; `moe-fix.diff`)
+## Candidate fixes tested (diagnostic, env-guarded; [patch](../../patches/v1.3/moe-invariance-candidate-fixes.patch))
 
 - **A. In invariant mode, sort src1 to F32 in the fallback** (`type_src1_sorted = F32 when ctx.batch_invariant`). This is a one-condition change. With it:
   - Each expert's `ggml_cuda_mul_mat` sees F32 src1 and takes the PR's existing MMVF-chunk invariant path.
