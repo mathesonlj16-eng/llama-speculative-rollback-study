@@ -1,0 +1,81 @@
+# v1.5.0 run log (2026-11-25). Build: worktree $SM75_ROOT/worktrees/pr-bi-fafix at 3f25ea199 + patches/v1.5, same CMake flags as v1.4.0 (Release, CUDA 13.2, sm_75, ccache), target llama.
+
+## Timeline: build and correctness
+2026-11-25T17:44:37-05:00 start
+2026-11-25T17:58:41-05:00 build done elapsed_s=842
+2026-11-25T17:58:43-05:00 compiled
+2026-11-25T17:58:58-05:00 e1-done
+2026-11-25T18:01:57-05:00 dump on singles elapsed_s=179
+2026-11-25T18:02:19-05:00 dump on whole elapsed_s=22
+2026-11-25T18:03:01-05:00 dump on c4 elapsed_s=42
+2026-11-25T18:03:34-05:00 dump on c8 elapsed_s=33
+2026-11-25T18:04:02-05:00 dump on pair4 elapsed_s=28
+2026-11-25T18:07:00-05:00 default singles elapsed_s=149
+2026-11-25T18:07:41-05:00 default whole elapsed_s=41
+2026-11-25T18:07:42-05:00 cmp-done
+e1 flag-off files=34 differ_from_A0=0
+
+## Timeline: timing
+2026-11-25T18:25:54-05:00 start
+2026-11-25T18:27:39-05:00 rep 1 done
+2026-11-25T18:29:21-05:00 rep 2 done
+2026-11-25T18:31:03-05:00 rep 3 done
+2026-11-25T18:32:46-05:00 rep 4 done
+2026-11-25T18:34:28-05:00 rep 5 done
+2026-11-25T18:34:28-05:00 done
+
+## GPU state before each timing run (count, temperature C, SM clock)
+4 65, 1785 MHz
+4 64, 1785 MHz
+2 62, 1785 MHz
+1 68, 1785 MHz
+1 66, 1785 MHz
+1 63, 1785 MHz
+1 58, 1785 MHz
+1 57, 1785 MHz
+1 55, 1785 MHz
+1 52, 1785 MHz
+1 48, 1785 MHz
+1 42, 1785 MHz
+1 35, 300 MHz
+
+## ccache
+Hits:              0 /  223 ( 0.00%)
+Misses:          223 /  223 (100.0%)
+
+## Log markers: 'batch invariance enabled for CUDA0' per log
+off-base-singles.log 0
+off-base-whole.log 0
+off-fafix-singles.log 0
+off-fafix-whole.log 0
+on-c4.log 19
+on-c8.log 19
+on-pair4.log 10
+on-singles.log 19
+on-whole.log 19
+e1-off.log 0
+e1-on.log 34
+bench base-bi-r1.log 1
+bench base-def-r1.log 0
+bench fafix-bi-r1.log 1
+bench fafix-def-r1.log 0
+
+## Hashes
+cb6188f76e5a215f4b2ece9492d0f58d6d342ecf5cbf9edddd97fa11e7e9024b  fafix.diff
+80a534d4d4f128be8afa31d84cb57b5e9f38265d9effdc033823b01baa66b616  cmp/default-singles.csv
+399a7ee532f22bdaae193e67f89d6a111b779f0b33d1f3511348778228d7f3f8  cmp/default-whole.csv
+1bdff0c81632fd10f25cd38beb0888b911d948a4d29bbb5533fae322ac3a1566  cmp/on-c4.csv
+06da22ad79d72ee83de09cca42772009461449589a564951dd83325ced825dd0  cmp/on-c8.csv
+29150eabd11cf23d9fbdabfb93737744b5d7a8d16def7e83b24f06a4c9629ec7  cmp/on-pair4.csv
+310c114145758f8ef3d10451a47029031c8c61189d7863174bb03798259f1c19  cmp/on-whole.csv
+60bb51e68dae3bfc8df1a26bf3425fc76585893dbd1478e73789c72ce01ebca3  e1-off.csv
+e41cb98e36f6e69b87e078afff3f7483a4dad11ac4f53cfef52ab8a93bcecae5  e1-on.csv
+d01006fddd2971c5d1d430020a902a075cff1a3e5701491bc38edba61505080d  $SM75_ROOT/build/pr-bi-fafix/bin/libggml-cuda.so.1.0.0
+8440fe095bb8208e98caa8e46a5878991ddfddc2258c47d0a2ee48f956029df1  $SM75_ROOT/build/pr-bi-fafix/bin/libllama.so.1.0.0
+65e02f122c114a89929fc7c6080ff5324f0094e28cdc7c90712c29fa8f9cf851  invariance-fafix
+367bb11ee03f29cddc9d783b3df9ffa08e22fe4e7076cbf8717ce2ed31ad2660  logit-dump-fafix
+1c22185ab4cbfdc9c156c3352a4ee0fcd4cbcd74ee16627f71ab58cf5486ce75  bench-pr-bi
+e7f736579f4dc682e058864fdd8d3c6b0aaae02a33892e478b4bdaa3c388060e  bench-pr-bi-fafix
+
+## Archived outside this repository
+14e2cee4f16bfe61c084110923aa7947e7871ca48460b2b7c2b34cc37f92dbdc  $SM75_ROOT/qwen-bi/fa/logit-cmp-fa.csv (8,640 per-position rows behind results/v1.5/logit-cmp-by-sequence.csv)

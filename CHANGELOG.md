@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.0 (2026-11-25)
+
+Adds a fix for the flash-attention gap that v1.4.0 found in PR #32081's batch-invariant mode, with its correctness and cost.
+
+- **Found** that one change, gated on the flag, makes every tested grouping bit-identical with no KV pin, two-sequence batches included. In invariant mode, it sizes the flash-attention `parallel_blocks` search for one sequence and caps it at one wave instead of the padded KV length. Default mode is bitwise unchanged.
+- **Measured** the cost in 20 interleaved runs: 0.4–0.7 % slower prefill, decode within ±0.3 %. Invariant mode itself costs about 3.1× in decode and 21–23 % in prefill, from forced MMQ.
+- **Added** `provenance/v1.5/FINDINGS.md` and `run-log.txt`; `results/v1.5/`; `patches/v1.5/fa-kv-split-invariant-vs-pr-head.patch`; `scripts/v1.5/` (runner, timing tool, analysis); and v1.5.0 checks in `scripts/verify-results.py`.
+- **Changed** README (a v1.5.0 paragraph), REPRODUCE (a v1.5.0 section) and LICENSING (the v1.5 patch directory).
+
 ## v1.4.0 (2026-11-25)
 
 Resolves the README's open question of which CUDA kernels caused the grouping-dependent logits. Each fix was tested on the PR #32081 head, with the flag off and on in the same binary.

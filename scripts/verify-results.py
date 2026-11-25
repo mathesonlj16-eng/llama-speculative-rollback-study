@@ -221,4 +221,24 @@ for r in seqs:   # 256-cell boundary: flag-on single-sequence residual only wher
 pair_a4 = {r["key"]: r for r in seqs if r["comparison"] == "on-singles-vs-pair4" and r["phase"] == "a4"}
 ctx_a5 = {r["key"]: r for r in seqs if r["comparison"] == "ctx2048-vs-ctx1024-singles"}
 assert all((pair_a4[k]["nonzero"], pair_a4[k]["first_nonzero_index"], pair_a4[k]["max_abs_diff"]) == (ctx_a5[k]["nonzero"], ctx_a5[k]["first_nonzero_index"], ctx_a5[k]["max_abs_diff"]) for k in pair_a4)
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2 and v1.4.0 controls verified.")
+# v1.5.0: invariant-mode flash-attention KV-split fix
+assert (root / "v1.5/e1-flag-off.csv").read_bytes() == (root / "v1.4/e1-flag-off.csv").read_bytes()
+assert (root / "v1.5/e1-flag-on.csv").read_bytes() == (root / "v1.4/e1-flag-on.csv").read_bytes()
+fa = csv_rows("v1.5/logit-cmp-by-sequence.csv")
+fat = {}
+for r in fa:
+    t = fat.setdefault(r["comparison"], [0, 0, 0])
+    t[0] += int(r["positions"]); t[1] += int(r["nonzero"]); t[2] += int(r["argmax_differs"])
+assert len(fat) == 6 and all(v == [1440, 0, 0] for v in fat.values()), fat   # flag on: all shapes incl. pair4; default: unchanged
+bt = [r for r in csv_rows("v1.5/bench-times.csv") if int(r["depth"]) > 0]
+assert len(bt) == 60
+def med(cfg, d, f):
+    xs = sorted((d if f == "pp_ms" else int(r["tg_tokens"])) / float(r[f]) for r in bt if r["label"].rsplit("-r", 1)[0] == cfg and int(r["depth"]) == d)
+    assert len(xs) == 5; return xs[2]
+for d in (256, 1024, 4096):
+    for f in ("pp_ms", "tg_ms"):
+        assert .99 <= med("fafix-bi", d, f) / med("base-bi", d, f) <= 1.005          # patch cost in invariant mode
+        assert .997 <= med("fafix-def", d, f) / med("base-def", d, f) <= 1.003       # default mode unaffected
+    assert .30 <= med("base-bi", d, "tg_ms") / med("base-def", d, "tg_ms") <= .33     # invariant-mode decode cost
+    assert .76 <= med("base-bi", d, "pp_ms") / med("base-def", d, "pp_ms") <= .80
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0 and v1.5.0 controls verified.")

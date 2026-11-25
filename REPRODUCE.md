@@ -77,6 +77,19 @@ This also runs independently of the server harness. It uses the same `SM75_ROOT`
 
 The steps take about 15 min for the build (ccache cold) and about 20 min for all runs. The logit dumps need about 21 GB. Concatenate the `logit-cmp` CSVs with a leading phase column, then run `scripts/v1.4/aggregate.py` to regenerate `results/v1.4/logit-cmp-by-sequence.csv`. The runner is a parameterized copy of the drivers that ran on 2026-11-25. It was checked with `bash -n`, and its patch step was checked against the sources that ran; it has not been rerun end to end.
 
+### v1.5.0 flash-attention fix
+
+Run the v1.4.0 `build` and `e1` steps first. Then:
+- `TARGET=/abs/target.gguf bash scripts/v1.5/run.sh build`. This builds `pr-bi-fafix` (PR head plus `patches/v1.5/fa-kv-split-invariant-vs-pr-head.patch`, about 14 min with ccache cold) and the timing tool for both builds.
+- `bash scripts/v1.5/run.sh check` runs:
+  - E1 flag off and on;
+  - the teacher-forced shapes with the flag on, without the KV pin;
+  - the default-mode comparison against the unpatched build.
+  It takes about 9 min and writes about 12 GB of dumps.
+- `bash scripts/v1.5/run.sh bench` runs 20 interleaved timing runs (about 9 min) and prints medians.
+
+Aggregate the `logit-cmp` CSVs with `scripts/v1.4/aggregate.py`, using phase `fa`. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
+
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
 The stock build is upstream `787a5612fceef602503e5f0ee6133cdc9b8a85c1`. Apply each of the four patches independently to the pin. The target patch is cumulative with paired checkpoints, and keep-draft is cumulative with both. The exact-activation patch is a separate CPU experiment. The archived prototype used CPU-compiled server/common libraries over a shared CUDA runtime. The build script makes clean variant builds. The original CUDA 13.1/GCC 15 combination required a local, two-declaration CUDA-header exception-specification compatibility adjustment for rsqrt and rsqrtf. Use a supported toolchain pairing or supply an equivalent local toolchain workaround according to your CUDA installation. The upstream llama.cpp changes and NVIDIA headers have separate licensing.

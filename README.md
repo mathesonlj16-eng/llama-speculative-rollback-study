@@ -101,6 +101,13 @@ So, for these fixtures on sm_75, the discrepancy comes from two batch-dependent 
 
 Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 findings](provenance/v1.4/FINDINGS.md) · [Per-sequence results](results/v1.4/logit-cmp-by-sequence.csv) · [Patches](patches/v1.4/)
 
+**v1.5.0: a flash-attention fix for the second source.** A change to the flash-attention launch, gated on the flag, closes the gap without pinning the KV length.
+- **What it changes.** In invariant mode, the KV split is sized for one sequence and capped at one wave of GPU blocks, so it no longer depends on the padded KV length.
+- **Correctness.** Every tested grouping became bit-identical to one-token-per-call output: whole, c4, c8, and two sequences per batch with a different cache size. Default-mode output didn't change.
+- **Cost.** In 20 interleaved timing runs, the patch cost 0.4–0.7 % in prefill, and decode stayed within noise. Invariant mode itself runs decode at about 0.32× of default mode, from the forced matmul path.
+
+[v1.5.0 findings](provenance/v1.5/FINDINGS.md) · [Patch](patches/v1.5/fa-kv-split-invariant-vs-pr-head.patch) · [Timing](results/v1.5/bench-times.csv)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.
