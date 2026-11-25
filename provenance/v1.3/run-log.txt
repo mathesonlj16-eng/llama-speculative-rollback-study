@@ -1,0 +1,50 @@
+2026-11-25T11:36:18-05:00 mmq.cu edits present: 0 (expect 3)
+2026-11-25T11:36:55-05:00 mmq.cu edits present: 3 (expect 3)
+2026-11-25T11:37:17-05:00 rebuilt pool-d4f-pr in 22 s; compiled units: 1
+2026-11-25T11:37:43-05:00 rebuilt pool-s75-pr in 26 s; compiled units: 1
+2026-11-25T11:37:45-05:00 J choice ncols=unset: 
+2026-11-25T11:37:46-05:00 J choice ncols=0: 
+2026-11-25T11:37:48-05:00 J choice ncols=64: 
+2026-11-25T11:40:04-05:00 pool-d4f-pr ncols=0 big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:40:22-05:00 pool-d4f-pr ncols=0 small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:42:33-05:00 pool-d4f-pr ncols=unset big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:42:51-05:00 pool-d4f-pr ncols=unset small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:45:02-05:00 pool-d4f-pr ncols=64 big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:45:21-05:00 pool-d4f-pr ncols=64 small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:47:31-05:00 pool-d4f-pr ncols=0 big rand: exit=0 ok=450 fail=0
+2026-11-25T11:47:49-05:00 pool-d4f-pr ncols=0 small rand: exit=0 ok=300 fail=0
+2026-11-25T11:50:00-05:00 pool-s75-pr ncols=0 big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:50:19-05:00 pool-s75-pr ncols=0 small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:52:30-05:00 pool-s75-pr ncols=unset big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:52:49-05:00 pool-s75-pr ncols=unset small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:55:13-05:00 pool-s75-pr ncols=64 big 1234: exit=0 ok=450 fail=0
+2026-11-25T11:55:33-05:00 pool-s75-pr ncols=64 small 1234: exit=0 ok=300 fail=0
+2026-11-25T11:57:42-05:00 pool-s75-pr ncols=0 big rand: exit=0 ok=450 fail=0
+2026-11-25T11:58:02-05:00 pool-s75-pr ncols=0 small rand: exit=0 ok=300 fail=0
+2026-11-25T11:58:02-05:00 CORRECTNESS DONE
+2026-11-25T11:59:31-05:00 perf def r1: exit=0 memclk_bad=0 sm_min=1755
+2026-11-25T11:59:32-05:00 perf pin r1: exit=127 memclk_bad=0 sm_min=1785
+2026-11-25T12:00:02-05:00 perf free r1: exit=0 memclk_bad=0 sm_min=1380
+2026-11-25T12:00:03-05:00 perf pin r2: exit=127 memclk_bad=0 sm_min=1785
+2026-11-25T12:00:35-05:00 perf free r2: exit=0 memclk_bad=0 sm_min=1380
+2026-11-25T12:01:04-05:00 perf def r2: exit=0 memclk_bad=0 sm_min=1380
+2026-11-25T12:01:35-05:00 perf free r3: exit=0 memclk_bad=0 sm_min=1785
+2026-11-25T12:02:05-05:00 perf def r3: exit=0 memclk_bad=0 sm_min=1740
+2026-11-25T12:02:06-05:00 perf pin r3: exit=127 memclk_bad=0 sm_min=1785
+2026-11-25T12:02:06-05:00 DONE
+2026-11-25T12:02:37-05:00 J choice pool-d4f-pr ncols=unset: 
+2026-11-25T12:02:40-05:00 J choice pool-d4f-pr ncols=0: 
+2026-11-25T12:02:42-05:00 J choice pool-d4f-pr ncols=64: 
+2026-11-25T12:02:45-05:00 J choice pool-s75-pr ncols=unset: 
+2026-11-25T12:02:47-05:00 J choice pool-s75-pr ncols=0: 
+2026-11-25T12:02:50-05:00 J choice pool-s75-pr ncols=64: 
+2026-11-25T12:03:53-05:00 perf2 pin s1: exit=0 memclk_bad=0 sm_min=1785 tmax=70
+2026-11-25T12:04:22-05:00 perf2 def s1: exit=0 memclk_bad=0 sm_min=1755 tmax=72
+2026-11-25T12:04:53-05:00 perf2 free s1: exit=0 memclk_bad=0 sm_min=1785 tmax=69
+2026-11-25T12:05:22-05:00 perf2 def s2: exit=0 memclk_bad=0 sm_min=1755 tmax=71
+2026-11-25T12:05:53-05:00 perf2 free s2: exit=0 memclk_bad=0 sm_min=1785 tmax=69
+2026-11-25T12:06:25-05:00 perf2 pin s2: exit=0 memclk_bad=0 sm_min=1380 tmax=68
+2026-11-25T12:06:56-05:00 perf2 free s3: exit=0 memclk_bad=0 sm_min=1380 tmax=67
+2026-11-25T12:07:26-05:00 perf2 pin s3: exit=0 memclk_bad=0 sm_min=1380 tmax=67
+2026-11-25T12:07:55-05:00 perf2 def s3: exit=0 memclk_bad=0 sm_min=1380 tmax=69
+2026-11-25T12:07:55-05:00 DONE2

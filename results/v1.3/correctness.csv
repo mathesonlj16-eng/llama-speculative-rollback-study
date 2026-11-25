@@ -1,0 +1,17 @@
+build,ncols,grid,seed,exit,ok,fail
+pool-d4f-pr,0,big,1234,0,450,0
+pool-d4f-pr,0,small,1234,0,300,0
+pool-d4f-pr,unset,big,1234,0,450,0
+pool-d4f-pr,unset,small,1234,0,300,0
+pool-d4f-pr,64,big,1234,0,450,0
+pool-d4f-pr,64,small,1234,0,300,0
+pool-d4f-pr,0,big,rand,0,450,0
+pool-d4f-pr,0,small,rand,0,300,0
+pool-s75-pr,0,big,1234,0,450,0
+pool-s75-pr,0,small,1234,0,300,0
+pool-s75-pr,unset,big,1234,0,450,0
+pool-s75-pr,unset,small,1234,0,300,0
+pool-s75-pr,64,big,1234,0,450,0
+pool-s75-pr,64,small,1234,0,300,0
+pool-s75-pr,0,big,rand,0,450,0
+pool-s75-pr,0,small,rand,0,300,0

@@ -1,0 +1,24 @@
+diff --git a/ggml/src/ggml-cuda/mmq.cu b/ggml/src/ggml-cuda/mmq.cu
+index f9816345c..388cb5adf 100644
+--- a/ggml/src/ggml-cuda/mmq.cu
++++ b/ggml/src/ggml-cuda/mmq.cu
+@@ -259,10 +259,18 @@ void ggml_cuda_mul_mat_q(
+         if (ctx.batch_invariant) {
+             // Pin the smallest valid tile width regardless of the actual batch size so the
+             // same template instantiation (and thus the same reduction order).
+-            ncols_opt = 1;
++            // SM75 diagnostic: SM75_INV_NCOLS unset -> 1 (PR behaviour), 0 -> J follows the batch, n -> optimise J for n columns
++            static const char * sm75_inv_ncols = getenv("SM75_INV_NCOLS");
++            const int64_t sm75_n = sm75_inv_ncols ? atoll(sm75_inv_ncols) : 1;
++            if (sm75_n != 0) {
++                ncols_opt = sm75_n;
++            }
+         }
+ 
+         J_best = ggml_cuda_mmq_get_J_best(src0->type, ncols_opt, fallback, cc, smpbo, prec_src1, &nthreads_best);
++        if (getenv("SM75_INV_LOG")) {
++            fprintf(stderr, "SM75 mmq ne11=%lld inv=%d J_best=%d\n", (long long) ne11, (int) ctx.batch_invariant, J_best);
++        }
+     }
+     GGML_ASSERT(J_best > 0);
+ 

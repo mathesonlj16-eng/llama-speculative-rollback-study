@@ -1,0 +1,9 @@
+build,grid,ncols,cases,batch_hash_equal_to_pinned,serial_hash_equal_to_pinned
+pool-d4f-pr,big,0,450,450,450
+pool-d4f-pr,big,64,450,450,450
+pool-d4f-pr,small,0,300,300,300
+pool-d4f-pr,small,64,300,300,300
+pool-s75-pr,big,0,450,450,450
+pool-s75-pr,big,64,450,450,450
+pool-s75-pr,small,0,300,300,300
+pool-s75-pr,small,64,300,300,300

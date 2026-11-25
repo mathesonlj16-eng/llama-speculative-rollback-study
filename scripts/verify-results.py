@@ -171,4 +171,14 @@ sc = csv_rows("v1.2/static-check-dp4a.csv")
 assert [(r["build"], r["mmq_IMMA"], r["mmq_IDP.4A"]) for r in sc] == [("fixed-warp", "290683", "0"), ("d4f-fw", "0", "650496"), ("d4f-pr", "0", "650496")]
 st = {r["build"]: r for r in csv_rows("v1.2/static-check.csv")}
 assert st["fixed-warp"]["mmq_IMMA"] == st["pr"]["mmq_IMMA"] == "290683" and all(st[b]["all_IMMA"] == st[b]["all_HMMA"] == "0" for b in ("d4f-fw", "d4f-pr", "d4-fw"))
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0 and v1.2.0 controls verified.")
+# v1.3.0: tile-width pin
+c3 = csv_rows("v1.3/correctness.csv")
+assert len(c3) == 16 and all(r["exit"] == "0" and r["fail"] == "0" and int(r["ok"]) == (450 if r["grid"] == "big" else 300) for r in c3)
+hc = csv_rows("v1.3/hash-compare.csv")
+assert len(hc) == 8 and all(r["batch_hash_equal_to_pinned"] == r["serial_hash_equal_to_pinned"] == r["cases"] for r in hc)
+for r in csv_rows("v1.3/perf-medians.csv"):
+    d, pn, f = float(r["def_us"]), float(r["pin_us"]), float(r["free_us"])
+    assert abs(f / d - float(r["free_over_def"])) < .0015 and abs(pn / d - float(r["pin_over_def"])) < .0015
+    if r["N"] == "512":
+        assert .99 <= f / d <= 1.004 and pn / d > 2.3
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0 and v1.3.0 controls verified.")

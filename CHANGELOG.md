@@ -1,8 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 (2026-11-25)
 
-- **Changed** `provenance/v1.2/cuda13-pascal-hint.md`. It now acknowledges upstream PR #15468, which was closed after the maintainer declined dual dp4a/MMA variants for CC 7.5. The rejected runtime-selection suggestion is gone. What remains is the CUDA-version-aware hint and the fix to the missing `-` in the flag.
+Tests whether PR #32081's batch-invariant MMQ needs to pin the tile width. On sm_75, for the 5 tested types, it doesn't: with Stream-K off, the outputs are bit-identical at any tile width. On the dp4a path, invariant mode then matches default MMQ at N=512.
+
+- **Added** `provenance/v1.3/FINDINGS.md` and `provenance/v1.3/code-reading.md`.
+- **Added** `patches/v1.3/mmq-tile-width-switch.patch`, a host-only diagnostic environment switch.
+- **Added** `results/v1.3/`, `scripts/v1.3/` and v1.3.0 checks in `scripts/verify-results.py`.
+- **Changed** `provenance/v1.2/cuda13-pascal-hint.md` (after v1.2.0). It now acknowledges upstream PR #15468, which was closed after the maintainer declined dual dp4a/MMA variants for CC 7.5. The rejected runtime-selection suggestion is gone. What remains is the CUDA-version-aware hint and the fix to the missing `-` in the flag.
 
 ## v1.2.0 (2026-11-25)
 
