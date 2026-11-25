@@ -65,6 +65,20 @@ The toolkit did not. Fresh CUDA 13.1.115 builds reproduce the archived 13.1 devi
 
 The cause was a harness setting. In the archived flag-off control and the paired arm of the interleaved series, the target ran with recurrent snapshot capacity 0. In the rerun, the same servers ran at capacity 3. At the pin, nonzero capacity changes how the hybrid memory splits a two-sequence decode into microbatches. That changes the matrix shapes and, at near-tied logits, the greedy tokens. Single-sequence decoding is unaffected, which is why serial runs always matched. With the capacity shim replaced by a no-op, every build, including CUDA 13.2, reproduces the archive exactly: the same tokens and 34 restores in all 18 concurrent runs across the three builds. The rerun's one unexplained run comes from admission order. When prompt 1 is admitted at least 15 ms before prompt 0, a different but stable output appears for each capacity, in 78 of 78 such runs. [v1.1.0 findings](provenance/v1.1/FINDINGS.md) · [Flag-off matrix](results/v1.1/flagoff-matrix.csv) · [Reverse admission](results/v1.1/reverse-admission-matrix.csv) · [Logit comparisons](results/v1.1/logit-toolkit-and-shape.csv) · [Efficiency retrospective](provenance/v1.1/efficiency-retrospective.md)
 
+## Operator supplement: CUDA batch invariance and the Pascal path on the GTX 1650 (v1.2.0)
+
+On this card, CUDA `MUL_MAT` output depends on the batch width N, deterministically. Two things change with N: the MMVQ warp count between N = 1 and N = 8, and the switch from MMVQ to MMQ at N = 9. This mechanism could explain batch-shape discrepancies like the one above, but that hasn't been tested on the Qwen3.5 fixtures. Two options make the output batch-invariant on the tested shapes: a diagnostic chunked MMVQ, and the forced-MMQ invariant mode of [PR #32081](https://github.com/ggml-org/llama.cpp/pull/32081). The supplement asked whether llama.cpp's own advice for GTX 16xx GPUs, "use the Pascal code", changes their relative cost.
+
+- **CUDA 13 can't build the suggested `61-virtual` target.** A macro-guarded diagnostic switch instead removed every IMMA instruction from the 2,566 MMQ kernels (290,683 to 0) while keeping the sm_75 build.
+- **dp4a MMQ was 1.8–5.5× faster** than Turing MMA MMQ at N ≥ 16 (M = K = 4096, 5 quantization types).
+- **The PR's forced MMQ became 17–52% faster.** At N ≥ 16, its cost relative to chunked MMVQ moved from 1.06–1.47× to 0.63–1.11×.
+- **Both invariant options stayed batch-invariant** on the dp4a path:
+  - chunked MMVQ: 0 failures on both grids
+  - PR mode: 900/900 large-N cases, with a pool-enlarged test harness
+- **Control:** chunked MMVQ, which has no MMA path, stayed within 1% between builds.
+
+These results are operator-level only, from one card in one session. [v1.2.0 findings](provenance/v1.2/FINDINGS.md) · [Ratios](results/v1.2/ratios.csv) · [Correctness](results/v1.2/correctness.csv) · [Patches](patches/v1.2/) · [CUDA 13 hint note](provenance/v1.2/cuda13-pascal-hint.md)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

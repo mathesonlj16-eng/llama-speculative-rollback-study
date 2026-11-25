@@ -1,0 +1,8 @@
+2026-11-24T23:07:09-05:00 pool edits applied: 5 (expect 5)
+2026-11-24T23:16:05-05:00 built pool-d4f-pr in 535 s
+2026-11-24T23:28:11-05:00 built pool-s75-pr in 726 s
+2026-11-24T23:30:10-05:00 pool-d4f-pr 1234: exit=0 ok=450 fail=0
+2026-11-24T23:32:08-05:00 pool-s75-pr 1234: exit=0 ok=450 fail=0
+2026-11-24T23:34:06-05:00 pool-d4f-pr rand: exit=0 ok=450 fail=0
+2026-11-24T23:36:03-05:00 pool-s75-pr rand: exit=0 ok=450 fail=0
+2026-11-24T23:36:03-05:00 DONE

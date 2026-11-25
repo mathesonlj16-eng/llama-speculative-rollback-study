@@ -1,0 +1,155 @@
+diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
+index 1e98c6079..baff5737f 100644
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -306,7 +306,7 @@ static const char * cu_get_error_str(CUresult err) {
+ #define VOLTA_MMA_AVAILABLE
+ #endif // !defined(GGML_USE_HIP) && __CUDA_ARCH__ == GGML_CUDA_CC_VOLTA
+ 
+-#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING
++#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING && !defined(GGML_CUDA_DIAG_NO_TURING_MMA)
+ #define TURING_MMA_AVAILABLE
+ #endif // !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING
+ 
+@@ -383,6 +383,10 @@ static bool volta_mma_available(const int cc) {
+ }
+ 
+ static bool turing_mma_available(const int cc) {
++#ifdef GGML_CUDA_DIAG_NO_TURING_MMA
++    GGML_UNUSED(cc);
++    return false; // diagnostic: force the dp4a (Pascal-style) code paths on Turing
++#endif // GGML_CUDA_DIAG_NO_TURING_MMA
+     return GGML_CUDA_CC_IS_NVIDIA(cc) && ggml_cuda_highest_compiled_arch(cc) >= GGML_CUDA_CC_TURING;
+ }
+ 
+diff --git a/tests/test-backend-ops.cpp b/tests/test-backend-ops.cpp
+index c4371500c..a219ae058 100644
+--- a/tests/test-backend-ops.cpp
++++ b/tests/test-backend-ops.cpp
+@@ -82,12 +82,18 @@ static void init_tensor_uniform(ggml_tensor * tensor, float min = -1.0f, float m
+ 
+     size_t nels = ggml_nelements(tensor);
+     std::vector<float> data(nels);
++    static std::atomic<unsigned> sm75_call_ctr{0};
++    const unsigned sm75_call = sm75_call_ctr++;
+     {
+         // parallel initialization
+         static const size_t n_threads = std::max<size_t>(1, std::min<size_t>(nels/1024, std::min<size_t>(4, N_THREADS/2)));
+ 
+         auto init_thread = [&](size_t start, size_t end) {
+-            thread_local std::default_random_engine gen(std::random_device{}());
++            // SM75 local patch: SM75_SEED makes tensor init reproducible across runs
++            static const char * sm75_seed = getenv("SM75_SEED");
++            thread_local std::default_random_engine gen_tl(std::random_device{}());
++            std::default_random_engine gen_local(sm75_seed ? (unsigned) (atoi(sm75_seed) + 1000003u*sm75_call + start) : 0u);
++            std::default_random_engine & gen = sm75_seed ? gen_local : gen_tl;
+             std::uniform_real_distribution<float> distribution(min, max);
+             for (size_t i = start; i < end; i++) {
+                 data[i] = distribution(gen);
+@@ -9592,6 +9598,14 @@ struct test_batch_invariance : public test_case {
+         if (n_diff > 0) {
+             printf("[%zu/%zu differ, max diff %g] ", n_diff, half, max_diff);
+         }
++        if (getenv("SM75_HASH")) { // SM75 local patch: bitwise FNV-1a of batch and serial halves
++            uint64_t hb = 1469598103934665603ull, hs = hb;
++            for (size_t i = 0; i < half; i++) {
++                uint32_t ub, us; memcpy(&ub, &a[i], 4); memcpy(&us, &a[half+i], 4);
++                hb = (hb ^ ub) * 1099511628211ull; hs = (hs ^ us) * 1099511628211ull;
++            }
++            printf("[hb=%016llx hs=%016llx] ", (unsigned long long) hb, (unsigned long long) hs);
++        }
+         return n_diff;
+     }
+ 
+@@ -14646,9 +14660,22 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_eval() {
+ #endif
+ 
+ // Test cases for performance evaluation: should be representative of real-world use cases
++static std::vector<int64_t> sm75_ints(const char * v);
++static std::vector<ggml_type> sm75_types(const char * v);
+ static std::vector<std::unique_ptr<test_case>> make_test_cases_perf() {
+     std::vector<std::unique_ptr<test_case>> test_cases;
+ 
++    // SM75 local patch
++    if (const char * ty = getenv("SM75_PERF_TYPES")) {
++        for (ggml_type t : sm75_types(ty))
++        for (int64_t m : sm75_ints(getenv("SM75_PERF_M")))
++        for (int64_t k : sm75_ints(getenv("SM75_PERF_K")))
++        for (int64_t n : sm75_ints(getenv("SM75_PERF_N"))) {
++            test_cases.emplace_back(new test_mul_mat(t, GGML_TYPE_F32, m, n, k, {1, 1}, {1, 1}));
++        }
++        return test_cases;
++    }
++
+     test_cases.emplace_back(new test_timestep_embedding());
+     test_cases.emplace_back(new test_timestep_embedding(GGML_TYPE_F32, {32769, 1, 1, 1}, 4096, 10000));
+     test_cases.emplace_back(new test_timestep_embedding(GGML_TYPE_F32, {65, 1, 1, 1}, 1, 10000));
+@@ -15333,9 +15360,39 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_perf() {
+     return test_cases;
+ }
+ 
++// SM75 local patch: parse comma lists from env
++static std::vector<int64_t> sm75_ints(const char * v) {
++    std::vector<int64_t> r; std::stringstream ss(v); std::string t;
++    while (std::getline(ss, t, ',')) { if (!t.empty()) r.push_back(std::stoll(t)); }
++    return r;
++}
++static std::vector<ggml_type> sm75_types(const char * v) {
++    std::vector<ggml_type> r; std::stringstream ss(v); std::string t;
++    while (std::getline(ss, t, ',')) {
++        bool ok = false;
++        for (int i = 0; i < GGML_TYPE_COUNT; i++) {
++            const char * nm = ggml_type_name((ggml_type) i);
++            if (nm && strcasecmp(nm, t.c_str()) == 0) { r.push_back((ggml_type) i); ok = true; break; }
++        }
++        if (!ok) { fprintf(stderr, "unknown type %s\n", t.c_str()); exit(1); }
++    }
++    return r;
++}
++
+ static std::vector<std::unique_ptr<test_case>> make_test_cases_batch() {
+     std::vector<std::unique_ptr<test_case>> test_cases;
+ 
++    // SM75 local patch: SM75_BATCH_TYPES/M/K/N select an explicit MUL_MAT matrix instead of the upstream list
++    if (const char * ty = getenv("SM75_BATCH_TYPES")) {
++        for (ggml_type t : sm75_types(ty))
++        for (int64_t m : sm75_ints(getenv("SM75_BATCH_M")))
++        for (int64_t k : sm75_ints(getenv("SM75_BATCH_K")))
++        for (int64_t n : sm75_ints(getenv("SM75_BATCH_N"))) {
++            test_cases.emplace_back(new test_mul_mat_batch_inv(t, m, k, n));
++        }
++        return test_cases;
++    }
++
+     const std::array<int64_t, 2> mk_shapes[] = { { 4096, 4096 }, { 4096, 12288 } };
+     for (ggml_type type_a : { GGML_TYPE_F32,
+                               GGML_TYPE_F16,
+@@ -15344,7 +15401,9 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_batch() {
+                               GGML_TYPE_Q8_0,
+                               GGML_TYPE_Q4_K,
+                               GGML_TYPE_Q5_K,
+-                              GGML_TYPE_Q6_K }) {
++                              GGML_TYPE_Q6_K,
++                              GGML_TYPE_IQ3_S,    // SM75 local patch
++                              GGML_TYPE_IQ4_XS }) {
+         for (const auto & [m, k] : mk_shapes) {
+             for (int n : { 2, 3, 4, 5, 8, 16, 32 }) {
+                 test_cases.emplace_back(new test_mul_mat_batch_inv(type_a, m, k, n));
+@@ -15485,7 +15544,8 @@ static bool op_names_filter_selects(const char * op_names_filter, const char * o
+ 
+ // LLAMA_TEST_BATCH_INVARIANT_DISABLE=1 runs batch mode without batch invariance enabled.
+ static void set_batch_invariant(ggml_backend_t backend, test_mode mode) {
+-    if (mode != MODE_BATCH || getenv("LLAMA_TEST_BATCH_INVARIANT_DISABLE")) {
++    // SM75 local patch: SM75_PERF_INVARIANT=1 also enables it in perf mode
++    if ((mode != MODE_BATCH && !(mode == MODE_PERF && getenv("SM75_PERF_INVARIANT"))) || getenv("LLAMA_TEST_BATCH_INVARIANT_DISABLE")) {
+         return;
+     }
+     ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend));
+@@ -15744,6 +15804,7 @@ static bool test_backend(ggml_backend_t backend, ggml_backend_dev_t dev, test_mo
+     }
+ 
+     if (mode == MODE_PERF) {
++        set_batch_invariant(backend, mode); // SM75 local patch (no-op unless SM75_PERF_INVARIANT)
+         for (auto & test : test_cases) {
+             test->eval_perf(backend, op_names_filter, output_printer);
+         }

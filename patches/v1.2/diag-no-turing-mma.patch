@@ -1,0 +1,24 @@
+diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
+index 5b3c32858..21421e61f 100644
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -306,7 +306,7 @@ static const char * cu_get_error_str(CUresult err) {
+ #define VOLTA_MMA_AVAILABLE
+ #endif // !defined(GGML_USE_HIP) && __CUDA_ARCH__ == GGML_CUDA_CC_VOLTA
+ 
+-#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING
++#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING && !defined(GGML_CUDA_DIAG_NO_TURING_MMA)
+ #define TURING_MMA_AVAILABLE
+ #endif // !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && __CUDA_ARCH__ >= GGML_CUDA_CC_TURING
+ 
+@@ -383,6 +383,10 @@ static bool volta_mma_available(const int cc) {
+ }
+ 
+ static bool turing_mma_available(const int cc) {
++#ifdef GGML_CUDA_DIAG_NO_TURING_MMA
++    GGML_UNUSED(cc);
++    return false; // diagnostic: force the dp4a (Pascal-style) code paths on Turing
++#endif // GGML_CUDA_DIAG_NO_TURING_MMA
+     return GGML_CUDA_CC_IS_NVIDIA(cc) && ggml_cuda_highest_compiled_arch(cc) >= GGML_CUDA_CC_TURING;
+ }
+ 

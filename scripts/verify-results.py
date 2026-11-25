@@ -136,4 +136,39 @@ for r in csv_rows("v1.1/interleaved-matrix.csv"):
 audit = [r for r in csv_rows("v1.1/archive-capacity-audit.csv") if r["slots"] == "2" and
          ("flag-off-control-results/concurrent" in r["log"] or "interleaved-results/paired" in r["log"] or "eval-results/paired-s2-n3" in r["log"])]
 assert len(audit) == 14 and all((r["target_n_rs_seq"], r["checkpoint_restores"]) in (("0", "34"), ("3", "39")) for r in audit)
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun and v1.1.0 controls verified.")
+# v1.2.0: dp4a (Pascal-style) MMQ supplement
+rounds = csv_rows("v1.2/rounds.csv")
+med = csv_rows("v1.2/medians.csv")
+arms = ["s75m0", "s75m2", "s75pron", "fm0", "fm2", "fpron", "nm0"]
+assert len(med) == 5 * 12
+for r in med:
+    for a in arms:
+        obs = [float(x["us"]) for x in rounds if (x["arm"], x["type"], x["N"]) == (a, r["type"], r["N"])]
+        assert len(obs) == int(r[f"{a}_n"]) == 10, (a, r["type"], r["N"])
+        assert abs(median(obs) - float(r[f"{a}_us"])) < .006, (a, r["type"], r["N"])
+mi = {(r["type"], r["N"]): r for r in med}
+for r in csv_rows("v1.2/ratios.csv"):
+    for col in ("fpron/fm2", "s75pron/s75m2", "fpron/s75pron", "fm0/s75m0", "fm2/s75m2", "fm2/fm0", "nm0/fm0"):
+        a, b = col.split("/")
+        m = mi[(r["type"], r["N"])]
+        q = float(m[f"{a}_us"]) / float(m[f"{b}_us"])  # medians.csv is rounded to 0.01 us
+        assert abs(q - float(r[col])) < 3e-4 * q + 6e-5, (col, r["type"], r["N"])
+    assert .99 < float(r["fm2/s75m2"]) < 1.011                 # chunked-MMVQ control
+    if int(r["N"]) >= 16:
+        assert 1.06 <= float(r["s75pron/s75m2"]) <= 1.471 and .629 <= float(r["fpron/fm2"]) <= 1.113
+        assert float(r["fm0/s75m0"]) < .56
+assert len(csv_rows("v1.2/run-clocks.csv")) >= 70
+corr = csv_rows("v1.2/correctness.csv")
+cells = {"small": 300, "bigN": 450}
+for r in corr:
+    if r["arm"] in ("fm2", "pool-d4f-pr", "pool-s75-pr") or (r["arm"] == "fpron" and r["grid"] == "small"):
+        assert (r["exit"], r["fail"], int(r["ok"])) == ("0", "0", cells[r["grid"]]), r
+    elif r["arm"] == "fpron":   # timed binary's harness: context pool exhausted, not a mismatch
+        assert r["exit"] == "134" and r["fail"] == "0" and r["aborted"] == "1", r
+    else:                       # default and fixed-warp modes are not batch-invariant
+        assert r["exit"] == "1" and int(r["fail"]) > 0, r
+sc = csv_rows("v1.2/static-check-dp4a.csv")
+assert [(r["build"], r["mmq_IMMA"], r["mmq_IDP.4A"]) for r in sc] == [("fixed-warp", "290683", "0"), ("d4f-fw", "0", "650496"), ("d4f-pr", "0", "650496")]
+st = {r["build"]: r for r in csv_rows("v1.2/static-check.csv")}
+assert st["fixed-warp"]["mmq_IMMA"] == st["pr"]["mmq_IMMA"] == "290683" and all(st[b]["all_IMMA"] == st[b]["all_HMMA"] == "0" for b in ("d4f-fw", "d4f-pr", "d4-fw"))
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0 and v1.2.0 controls verified.")

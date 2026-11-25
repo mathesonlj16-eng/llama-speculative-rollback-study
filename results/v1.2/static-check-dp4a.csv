@@ -1,0 +1,4 @@
+build,mmq_kernels,mmq_IMMA,mmq_IDP.4A,all_IDP.4A
+fixed-warp,2566,290683,0,27912
+d4f-fw,2566,0,650496,678408
+d4f-pr,2566,0,650496,666788

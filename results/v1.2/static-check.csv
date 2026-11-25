@@ -1,0 +1,6 @@
+build,elf_archs,all_IMMA,all_HMMA,mmq_kernels,mmq_IMMA,mmq_HMMA
+fixed-warp,150 sm_75,290683,105088,2566,290683,0
+pr,150 sm_75,290683,105088,2566,290683,0
+d4f-fw,150 sm_75,0,0,2566,0,0
+d4f-pr,150 sm_75,0,0,2566,0,0
+d4-fw,150 sm_75,0,0,2566,0,0

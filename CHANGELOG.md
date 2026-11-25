@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.0 (2026-11-25)
+
+Adds an operator-level supplement on CUDA `MUL_MAT` batch invariance on the GTX 1650. It asks whether the Pascal-style (dp4a) MMQ path changes the cost of the two batch-invariant options: diagnostic chunked MMVQ and the forced-MMQ mode of PR #32081. It does: at N ≥ 16, the PR's forced MMQ goes from 6–47% slower than chunked MMVQ to between 37% faster and 11% slower. Nothing in v1.0.0 or v1.1.0 changes.
+
+- **Added** `provenance/v1.2/FINDINGS.md`, with SASS, kernel-dispatch and accuracy checks, batch-invariance grids, the 70-run performance sweep, measurement quality, limits and cost.
+- **Added** `provenance/v1.2/cuda13-pascal-hint.md`: llama.cpp's GTX 16xx hint (`61-virtual`) can't be built with CUDA 13. This note has not been posted upstream.
+- **Added** `patches/v1.2/`: the macro-guarded `GGML_CUDA_DIAG_NO_TURING_MMA` switch, plus full patches against master `22b99122e` and PR head `3f25ea199`.
+- **Added** `results/v1.2/`, `scripts/v1.2/` and v1.2.0 checks in `scripts/verify-results.py`.
+- **Changed** the README (new supplement section) and LICENSING (the two new upstream bases).
+
 ## v1.1.0 (2026-11-24)
 
 Investigates whether the CUDA toolkit change (13.1.115 to 13.2.86) explains the concurrent token and restore-count differences reported in v1.0.0. It doesn't.
