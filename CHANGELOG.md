@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.2 (2026-11-25)
+
+Reports a batch-invariance bug in PR #32081 on the stock sm_75 build. In invariant mode, BF16 MUL_MAT_ID fails at every tested N, and F16 MUL_MAT_ID fails once the batch exceeds MMF's token limit. The MoE fallback passes F16/BF16 src1 to `ggml_cuda_mul_mat`, which sends non-F32 src1 to cuBLAS ahead of the invariant branches.
+
+- **Added** `provenance/v1.3/moe-gap.md`, `results/v1.3/moe-gap.csv`, `patches/v1.3/moe-invariance-candidate-fixes.patch` and the scripts.
+- **Found** that candidate fix A (sort src1 to F32 in invariant mode) makes BF16 invariant, with default output unchanged. Fix B (skip MMF) trips `ggml_cuda_mul_mat_id_needs_sync`, so F16 at large N needs a design decision.
+- **Added** v1.3.2 checks in `scripts/verify-results.py`.
+
 ## v1.3.1 (2026-11-25)
 
 Extends v1.3.0's coverage. With Stream-K off, tile width still doesn't change the bits across 13 quant types, fallback-config M, K values that aren't a multiple of 256, and quantized MUL_MAT_ID with seeded routing at tile widths up to 128. The PR's own batch suite passes on stock sm_75.

@@ -83,6 +83,8 @@ These results are operator-level only, from one card in one session. [v1.2.0 fin
 
 v1.3.1 extends this to 13 quant types, fallback-config shapes, K values that aren't a multiple of 256, and quantized MoE (`MUL_MAT_ID`, seeded routing, tile widths up to 128). In every case the bits matched the pinned width. On the dp4a diagnostic build only, F16 MoE fails batch invariance whether the width is pinned or free; this is a separate, untraced issue. [v1.3.1 coverage](provenance/v1.3/coverage.md)
 
+v1.3.2 reports a bug in the PR itself. On the stock sm_75 build, invariant mode isn't batch-invariant for BF16 MoE at any tested N, or for F16 MoE beyond MMF's token limit (256 tokens with 2048-row experts here). The MoE fallback hands F16/BF16 inputs to cuBLAS, ahead of the invariant paths. A one-condition change fixes BF16; F16 at large N needs a design decision in `ggml_cuda_mul_mat_id_needs_sync`. [v1.3.2 MoE gap](provenance/v1.3/moe-gap.md)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

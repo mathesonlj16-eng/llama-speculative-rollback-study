@@ -189,4 +189,13 @@ for t in ("types", "oddk"):
         assert r["cases"] == r["same_status"] == r["batch_hash_eq"] == r["serial_hash_eq"], r
 for r in csv_rows("v1.3/moe-compare.csv"):
     assert r["cases"] == r["ok_free"] == r["free_batch_eq_serial"] == r["pinned_repeat_eq"] == r["free_eq_pinned"] == "52", r
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0 and v1.3.1 controls verified.")
+# v1.3.2: non-quantized MUL_MAT_ID gap
+mg = csv_rows("v1.3/moe-gap.csv")
+def st(v, t): return [r["status"] for r in mg if r["variant"] == v and r["type"] == t]
+assert st("default", "bf16") == ["FAIL"] * 9 and st("default_after_patch", "bf16") == ["FAIL"] * 9
+assert sorted(st("default", "f16")) == ["FAIL"] * 2 + ["OK"] * 7
+assert all(r["n"] == "256" and r["m"] == "2048" for r in mg if r["variant"] == "default" and r["type"] == "f16" and r["status"] == "FAIL")
+assert st("default", "f32") == st("default", "q8_0") == ["OK"] * 9
+assert st("fixA_f32sort", "bf16") == ["OK"] * 9 and sorted(st("fixA_f32sort", "f16")) == ["FAIL"] * 2 + ["OK"] * 7
+assert st("fixA_plus_B_nommf", "f16") == ["ABORT_needs_sync_assert"]
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1 and v1.3.2 controls verified.")

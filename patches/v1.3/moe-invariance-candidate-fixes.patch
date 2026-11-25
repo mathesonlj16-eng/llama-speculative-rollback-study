@@ -1,0 +1,28 @@
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index f9bdee943b..0e340e40a5 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -2712,7 +2712,10 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
+             return;
+         }
+ 
+-        if (ggml_cuda_should_use_mmf(src0->type, cc, warp_size, src0->ne, src0->nb, src1->ne[2], /*mul_mat_id=*/true)) {
++        // SM75 diagnostic: SM75_MOE_NOMMF=1 skips MMF in batch-invariant mode, because whether MMF is allowed depends on the token count
++        static const bool sm75_nommf = getenv("SM75_MOE_NOMMF") != nullptr;
++        if (!(sm75_nommf && ctx.batch_invariant) &&
++                ggml_cuda_should_use_mmf(src0->type, cc, warp_size, src0->ne, src0->nb, src1->ne[2], /*mul_mat_id=*/true)) {
+             ggml_cuda_mul_mat_f(ctx, src0, src1, ids, dst);
+             return;
+         }
+@@ -2725,7 +2728,11 @@ static void ggml_cuda_mul_mat_id(ggml_backend_cuda_context & ctx, ggml_tensor *
+     GGML_ASSERT(nb12 % nb11 == 0);
+     GGML_ASSERT(nb2  % nb1  == 0);
+ 
++    // SM75 diagnostic: SM75_MOE_F32SORT=1 sorts src1 as F32 in batch-invariant mode, so each expert's
++    // ggml_cuda_mul_mat sees F32 src1 and can take its batch-invariant path instead of cuBLAS
++    static const bool sm75_f32sort = getenv("SM75_MOE_F32SORT") != nullptr;
+     const ggml_type type_src1_sorted = (src0->type == GGML_TYPE_F16 && !fast_fp16_hardware_available(cc))
++        || (sm75_f32sort && ctx.batch_invariant)
+         || ggml_is_quantized(src0->type) || src0->type == GGML_TYPE_F8_E4M3 ? GGML_TYPE_F32 : src0->type;
+     const ggml_type type_dst_sorted  = GGML_TYPE_F32;
+     const size_t ts_src1_sorted = ggml_type_size(type_src1_sorted);
