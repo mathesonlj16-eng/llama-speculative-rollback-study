@@ -1,0 +1,22 @@
+diff --git a/src/llama-kv-cache.cpp b/src/llama-kv-cache.cpp
+index bb546f7cde..d0a0303aef 100644
+--- a/src/llama-kv-cache.cpp
++++ b/src/llama-kv-cache.cpp
+@@ -1304,7 +1304,7 @@ uint32_t llama_kv_cache::get_n_kv(const slot_info & sinfo) const {
+     for (uint32_t s = 0; s < sinfo.n_stream(); ++s) {
+         const auto & cells = v_cells[sinfo.strm[s]];
+ 
+-        result = std::max(std::min(cells.size(), std::max(n_pad, GGML_PAD(cells.used_max_p1(), n_pad))), result);
++        result = std::max((uint32_t) cells.size(), result); GGML_UNUSED(n_pad); // A4: n_kv pinned to cache size
+     }
+ 
+     return result;
+@@ -1400,7 +1400,7 @@ uint32_t llama_kv_cache::get_n_kv_rows(const llama_ubatch & ubatch) const {
+ 
+     // pad like n_kv so that the graph can be reused
+     // never 0, it means that kv_rows are not used (f.ex. the sequences have no cells yet in a cache that shares the cells of another one)
+-    return std::min(std::max(n_pad_cur, GGML_PAD(n_max, n_pad_cur)), get_size());
++    GGML_UNUSED(n_pad_cur); GGML_UNUSED(n_max); return get_size(); // A4: pinned
+ }
+ 
+ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_kv, const slot_info & sinfo) const {

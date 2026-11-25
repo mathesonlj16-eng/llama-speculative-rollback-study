@@ -37,7 +37,7 @@ Keep-draft retains usable proposal work through target verification, avoiding an
 
 The first two-slot greedy discrepancy could be reproduced by changing prefill grouping with capacity held fixed. Fixed-token replay then reproduced grouping-dependent logits with one sequence and no draft or rollback. Repeated results were deterministic in those fixtures. A small logit margin can turn a numerical change into a different argmax, after which comparing whole generated sequences mixes the original change with the consequences of different prefixes.
 
-An early long-prompt test used zero GPU layers and assumed that meant CPU-only. Backend traces showed a 348-token matrix multiply on CUDA while the one-token path stayed on CPU. The corrected comparison hid CUDA and disabled operation offload. With reference CPU kernels, whole-prompt and 64-token shapes matched the single-token reference at all 384 fixture-position comparisons per configuration. With default CPU kernels, the maximum logit difference reached 2.98 and top choice changed in two comparisons. The result describes batch-shape sensitivity in this fixture, an existing numerical reproducibility problem. The particular CUDA kernels responsible for the original shape discrepancy remain unresolved. [Reference results](results/g11-summary.csv) · [Default CPU results](results/g12-default.csv)
+An early long-prompt test used zero GPU layers and assumed that meant CPU-only. Backend traces showed a 348-token matrix multiply on CUDA while the one-token path stayed on CPU. The corrected comparison hid CUDA and disabled operation offload. With reference CPU kernels, whole-prompt and 64-token shapes matched the single-token reference at all 384 fixture-position comparisons per configuration. With default CPU kernels, the maximum logit difference reached 2.98 and top choice changed in two comparisons. The result describes batch-shape sensitivity in this fixture, an existing numerical reproducibility problem. v1.4.0 traced the original CUDA shape discrepancy to two batch-dependent kernel choices (see below). [Reference results](results/g11-summary.csv) · [Default CPU results](results/g12-default.csv)
 
 The activation experiment retained Q8_0 weights and changed activation handling. In the single-token perturbation sweep, the quantized path amplified small injected deviations. At token index 30, layer 12, a configured perturbation of 1e-6 gave median RMS logit shifts of 0.0434 with activation rounding and 0.000002 with exact activations. This intervention supports activation rounding as an amplifier. It does not identify the first differing instruction in the original run. [Sweep data](results/perturbation.csv)
 
@@ -67,7 +67,7 @@ The cause was a harness setting. In the archived flag-off control and the paired
 
 ## Operator supplement: CUDA batch invariance and the Pascal path on the GTX 1650 (v1.2.0)
 
-On this card, CUDA `MUL_MAT` output depends on the batch width N, deterministically. Two things change with N: the MMVQ warp count between N = 1 and N = 8, and the switch from MMVQ to MMQ at N = 9. This mechanism could explain batch-shape discrepancies like the one above, but that hasn't been tested on the Qwen3.5 fixtures. Two options make the output batch-invariant on the tested shapes: a diagnostic chunked MMVQ, and the forced-MMQ invariant mode of [PR #32081](https://github.com/ggml-org/llama.cpp/pull/32081). The supplement asked whether llama.cpp's own advice for GTX 16xx GPUs, "use the Pascal code", changes their relative cost.
+On this card, CUDA `MUL_MAT` output depends on the batch width N, deterministically. Two things change with N: the MMVQ warp count between N = 1 and N = 8, and the switch from MMVQ to MMQ at N = 9. v1.4.0 tests this mechanism on the Qwen3.5 fixtures (next section). Two options make the output batch-invariant on the tested shapes: a diagnostic chunked MMVQ, and the forced-MMQ invariant mode of [PR #32081](https://github.com/ggml-org/llama.cpp/pull/32081). The supplement asked whether llama.cpp's own advice for GTX 16xx GPUs, "use the Pascal code", changes their relative cost.
 
 - **CUDA 13 can't build the suggested `61-virtual` target.** A macro-guarded diagnostic switch instead removed every IMMA instruction from the 2,566 MMQ kernels (290,683 to 0) while keeping the sm_75 build.
 - **dp4a MMQ was 1.8–5.5× faster** than Turing MMA MMQ at N ≥ 16 (M = K = 4096, 5 quantization types).
@@ -79,11 +79,27 @@ On this card, CUDA `MUL_MAT` output depends on the batch width N, deterministica
 
 These results are operator-level only, from one card in one session. [v1.2.0 findings](provenance/v1.2/FINDINGS.md) · [Ratios](results/v1.2/ratios.csv) · [Correctness](results/v1.2/correctness.csv) · [Patches](patches/v1.2/) · [CUDA 13 hint note](provenance/v1.2/cuda13-pascal-hint.md)
 
-**v1.3.0: the tile-width pin is unnecessary.** PR #32081 pins MMQ to its narrowest tile width and runs one tile per block, with Stream-K off. Reading the kernels shows that on sm_75 each output's summation order doesn't depend on tile width; only Stream-K's K split changes it. With a host-only switch, a tile width that follows N, or one fixed at 64, gave the same bits as the pin on 750/750 cases per build, on both the dp4a and Turing MMA paths, with 0 invariance failures. On the dp4a path, invariant mode at N=512 then ran at 0.99�1.00� of default MMQ, down from 2.3�5.4�. The N=1 penalty, MMQ instead of MMVQ, is unchanged at 2.2�3.7�. The test covered 5 types and plain `MUL_MAT`; MMA timing needs a GPU with tensor cores. [v1.3.0 findings](provenance/v1.3/FINDINGS.md) � [Hash comparison](results/v1.3/hash-compare.csv) � [Timing](results/v1.3/perf-medians.csv) � [Patch](patches/v1.3/mmq-tile-width-switch.patch)
+**v1.3.0: the tile-width pin is unnecessary.** PR #32081 pins MMQ to its narrowest tile width and runs one tile per block, with Stream-K off. Reading the kernels shows that on sm_75 each output's summation order doesn't depend on tile width; only Stream-K's K split changes it. With a host-only switch, a tile width that follows N, or one fixed at 64, gave the same bits as the pin on 750/750 cases per build, on both the dp4a and Turing MMA paths, with 0 invariance failures. On the dp4a path, invariant mode at N=512 then ran at 0.99–1.00× of default MMQ, down from 2.3–5.4×. The N=1 penalty, MMQ instead of MMVQ, is unchanged at 2.2–3.7×. The test covered 5 types and plain `MUL_MAT`; MMA timing needs a GPU with tensor cores. [v1.3.0 findings](provenance/v1.3/FINDINGS.md) · [Hash comparison](results/v1.3/hash-compare.csv) · [Timing](results/v1.3/perf-medians.csv) · [Patch](patches/v1.3/mmq-tile-width-switch.patch)
 
 v1.3.1 extends this to 13 quant types, fallback-config shapes, K values that aren't a multiple of 256, and quantized MoE (`MUL_MAT_ID`, seeded routing, tile widths up to 128). In every case the bits matched the pinned width. On the dp4a diagnostic build only, F16 MoE fails batch invariance whether the width is pinned or free; this is a separate, untraced issue. [v1.3.1 coverage](provenance/v1.3/coverage.md)
 
 v1.3.2 reports a bug in the PR itself. On the stock sm_75 build, invariant mode isn't batch-invariant for BF16 MoE at any tested N, or for F16 MoE beyond MMF's token limit (256 tokens with 2048-row experts here). The MoE fallback hands F16/BF16 inputs to cuBLAS, ahead of the invariant paths. A one-condition change fixes BF16; F16 at large N needs a design decision in `ggml_cuda_mul_mat_id_needs_sync`. [v1.3.2 MoE gap](provenance/v1.3/moe-gap.md)
+
+## What caused the shape discrepancy (v1.4.0)
+
+The original fixture: with PR #32081's batch-invariant mode on, the CUDA shape discrepancy disappears.
+- The fixture is the 11-token, one-sequence replay. The mode off and on were run in the same PR-head build.
+- With the mode off, 24 of 34 decode plans differed from one-token-per-call output, by up to 0.277, and three plans changed the top token. These results are byte-identical to the v1.0.0 archive.
+- With the mode on, all 34 were bit-identical.
+
+Longer sequences expose a second source that the mode doesn't cover.
+- **What remains.** In teacher-forced replay of 19 sequences, the mode removed every top-token change in single-sequence groupings. But 603–768 of 1440 positions still differed once a sequence passed 256 tokens.
+- **Cause.** Flash attention chooses its KV split from the KV length, which the cache pads to a multiple of 256. That length depends on how far each batch writes.
+- **Test.** With the length pinned to the cache size, a diagnostic patch, every single-sequence grouping became bit-identical. Two sequences batched together also matched, once each stream had the same cache size as the reference.
+
+So, for these fixtures on sm_75, the discrepancy comes from two batch-dependent choices: the MUL_MAT dispatch, which the mode fixes, and the flash-attention KV split, which it doesn't.
+
+Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 findings](provenance/v1.4/FINDINGS.md) · [Per-sequence results](results/v1.4/logit-cmp-by-sequence.csv) · [Patches](patches/v1.4/)
 
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.0 (2026-11-25)
+
+Resolves the README's open question of which CUDA kernels caused the grouping-dependent logits. Each fix was tested on the PR #32081 head, with the flag off and on in the same binary.
+
+- **Found** that the batch-invariant mode removes the effect on the original 11-token, one-sequence fixture (E1): 24/34 plans differ with the flag off, 0/34 with it on. The flag-off output is byte-identical to the v1.0.0 archive.
+- **Found** a second, uncovered source on longer sequences. The flash-attention KV split follows the KV length, which is padded to 256 and depends on the batch. With the flag on, single-sequence shapes kept 603–768 of 1440 positions different, with no top-token changes. Pinning `n_kv` to the cache size made them bit-identical.
+- **Found** that the residual in two-sequence (`pair4`) runs comes from the per-stream cache size (1024 vs 2048 cells). At matching size it is bit-identical.
+- **Added** `provenance/v1.4/FINDINGS.md` and `run-log.txt`; `results/v1.4/`; `patches/v1.4/`, a replay-tool toggle and the diagnostic `n_kv` pin; `scripts/v1.4/`; and v1.4.0 checks in `scripts/verify-results.py`.
+- **Changed** the README (a new section, plus the two sentences that called the kernels unresolved or untested) METHODOLOGY (scope and strength of evidence) and LICENSING, which now names the v1.3 and v1.4 patch directories next to v1.2.
+- **Fixed** three characters in the README's v1.3.0 paragraph that had been saved in Windows-1252 rather than UTF-8 since v1.3.0 (–, ×, ·).
+
 ## v1.3.2 (2026-11-25)
 
 Reports a batch-invariance bug in PR #32081 on the stock sm_75 build. In invariant mode, BF16 MUL_MAT_ID fails at every tested N, and F16 MUL_MAT_ID fails once the batch exceeds MMF's token limit. The MoE fallback passes F16/BF16 src1 to `ggml_cuda_mul_mat`, which sends non-F32 src1 to cuBLAS ahead of the invariant branches.

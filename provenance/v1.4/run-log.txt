@@ -1,0 +1,88 @@
+# v1.4.0 environment and binaries (2026-11-25)
+
+## Build
+CMAKE_BUILD_TYPE:STRING=Release
+CMAKE_CUDA_ARCHITECTURES:UNINITIALIZED=75
+CMAKE_CUDA_COMPILER:STRING=/usr/local/cuda-13.2/bin/nvcc
+Build cuda_13.2.r13.2/compiler.37953736_0
+g++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+6.18.58.1-microsoft-standard-WSL2
+ccache launchers for C, C++ and CUDA; LLAMA_BUILD_TESTS=ON, LLAMA_CURL=OFF, LLAMA_OPENSSL=OFF; target llama
+
+## GPU (nvidia-smi at run start; idle clock)
+name, driver_version, clocks.current.sm [MHz]
+NVIDIA GeForce GTX 1650, 592.00, 300 MHz
+
+## Binary and library sha256
+230cd74c3a0eb1b56fcf347f844c1f76de3d04c1ef7b179135dd48c157df3c12  invariance
+993e524efc6075a61d5d16351f3d9fd559571db056bb41349b4f6dc78768b6b8  logit-dump
+a61363b268f4571459f1734cbf1b30cc3f00bfdc396a26aa7b23b938605429e5  logit-dump-kvfull
+1f05cb9876cb05b7a7d518700531995002e25ab9a6e6c9e8eddb9b25a0a8d74f  logit-dump-nctx
+d02e0a20e4bd26bddd350f06d53b520833088fc6433ceb729f5e23ba6b53d6e6  $SM75_ROOT/build/pr-bi/bin/libllama.so.1.0.0
+af73b5dcecc372b60b7a4fa55f14e2f42ff12e76f7407dc90274c5f68c8eccbc  $SM75_ROOT/build/pr-bi-kvfull/bin/libllama.so.1.0.0
+0201c56d6d42e74c5e9c7c701f2a3f2e5b9dd2159200fb28ee2f830574cb20a1  $SM75_ROOT/build/pr-bi/bin/libggml-cuda.so.1.0.0
+
+## Archived outside this repository
+047b7910b74adfb85a2da961deab3725b4f3d2060a0fe0c58624884b91be67ae  $SM75_ROOT/qwen-bi/logit-cmp-all.csv (23,040 per-position rows behind results/v1.4/logit-cmp-by-sequence.csv)
+
+## Log markers: 'batch invariance enabled for CUDA0' count per dump log (one per context)
+a3 off-c4.log 0
+a3 off-c8.log 0
+a3 off-pair4.log 0
+a3 off-singles.log 0
+a3 off-whole.log 0
+a3 on-c4.log 19
+a3 on-c8.log 19
+a3 on-pair4.log 10
+a3 on-singles.log 19
+a3 on-whole.log 19
+a4 on-c4.log 19
+a4 on-c8.log 19
+a4 on-pair4.log 10
+a4 on-singles.log 19
+a4 on-whole.log 19
+a5 on-singles-ctx1024.log 19
+e1 flag off: 0, e1 flag on: 34 (34 contexts each)
+
+## KV configuration from logs (count, line)
+a4-kvcfg-singles:
+19 llama_context: n_ctx_seq             = 2048
+19 llama_kv_cache: size =   24.00 MiB (  2048 cells,   6 layers,  1/1 seqs), K (f16):   12.00 MiB, V (f16):   12.00 MiB
+a4-kvcfg-pair4:
+10 llama_context: n_ctx_seq             = 1024
+10 llama_kv_cache: size =   24.00 MiB (  1024 cells,   6 layers,  2/2 seqs), K (f16):   12.00 MiB, V (f16):   12.00 MiB
+a5-kvcfg:
+19 llama_context: n_ctx_seq             = 1024
+19 llama_kv_cache: size =   12.00 MiB (  1024 cells,   6 layers,  1/1 seqs), K (f16):    6.00 MiB, V (f16):    6.00 MiB
+
+## Timelines
+2026-11-25T16:47:39-05:00 start
+2026-11-25T17:02:01-05:00 build done elapsed_s=861
+2026-11-25T17:02:02-05:00 compiled
+2026-11-25T17:02:09-05:00 run off done elapsed_s=7
+2026-11-25T17:02:17-05:00 run on done elapsed_s=8
+2026-11-25T17:02:17-05:00 done
+2026-11-25T17:04:00-05:00 start
+2026-11-25T17:04:02-05:00 compiled
+2026-11-25T17:05:01-05:00 dump off singles elapsed_s=59
+2026-11-25T17:05:20-05:00 dump off whole elapsed_s=19
+2026-11-25T17:05:40-05:00 dump off c4 elapsed_s=20
+2026-11-25T17:05:59-05:00 dump off c8 elapsed_s=19
+2026-11-25T17:06:21-05:00 dump off pair4 elapsed_s=22
+2026-11-25T17:09:27-05:00 dump on singles elapsed_s=186
+2026-11-25T17:09:58-05:00 dump on whole elapsed_s=31
+2026-11-25T17:10:37-05:00 dump on c4 elapsed_s=39
+2026-11-25T17:11:11-05:00 dump on c8 elapsed_s=34
+2026-11-25T17:11:45-05:00 dump on pair4 elapsed_s=34
+2026-11-25T17:12:56-05:00 cmp-done
+2026-11-25T17:17:12-05:00 start
+2026-11-25T17:17:21-05:00 built
+2026-11-25T17:20:23-05:00 dump on singles elapsed_s=182
+2026-11-25T17:20:44-05:00 dump on whole elapsed_s=21
+2026-11-25T17:21:17-05:00 dump on c4 elapsed_s=32
+2026-11-25T17:21:41-05:00 dump on c8 elapsed_s=24
+2026-11-25T17:22:10-05:00 dump on pair4 elapsed_s=29
+2026-11-25T17:22:42-05:00 cmp-done
+2026-11-25T17:24:39-05:00 start
+2026-11-25T17:27:41-05:00 dump singles ctx1024 elapsed_s=181
+2026-11-25T17:27:47-05:00 cmp-done

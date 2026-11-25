@@ -62,6 +62,21 @@ CAP_OVERRIDE="$STUDY_RUNS/nocap.so" bash scripts/run.sh "$STUDY_RUNS/cuda" "$STU
 
 The supplement is independent of the server harness. Apply `patches/v1.2/fixed-warp-dp4a-vs-master.patch` to llama.cpp master `22b99122e1dfe1d8a5175bfa2eaa8389699c0b92`. Apply `patches/v1.2/pr32081-dp4a-vs-pr-head.patch`, or the `-pool-` variant for large-N correctness, to the PR #32081 head `3f25ea199a36a9e83480b6dac0941bb82c96c5b9`. Fetch the PR with `git fetch origin pull/32081/head`. Build `test-backend-ops` with `CMAKE_CUDA_ARCHITECTURES=75`. Add `-DGGML_CUDA_DIAG_NO_TURING_MMA` to both CUDA and C++ flags for the dp4a arms, and set `GGML_CUDA_FORCE_MMQ` as listed in [the findings](provenance/v1.2/FINDINGS.md). The scripts in `scripts/v1.2/` expect `SM75_ROOT` (default `$HOME/research/sm75-batch-invariance`) to hold a bare clone at `upstream.git`, worktrees and builds. The findings list their order. Compact results are in `results/v1.2/`. Raw logs, nsys traces and builds are archived outside this repository.
 
+### v1.4.0 batch-invariant replay (PR #32081)
+
+This also runs independently of the server harness. It uses the same `SM75_ROOT` layout as v1.2.0: a bare clone at `upstream.git` with `pull/32081/head` fetched. Steps:
+- `TARGET=/abs/target.gguf bash scripts/v1.4/run.sh build`
+  - Checks the target digest.
+  - Builds libllama at the PR head `3f25ea199a36a9e83480b6dac0941bb82c96c5b9` (sm_75, CUDA 13.2, ccache) in a fresh worktree.
+  - Applies `patches/v1.4/replay-tools-batch-invariant-toggle.patch` to copies of the E1 and `logit-dump` tools.
+  - Builds a second libllama with `patches/v1.4/kv-n_kv-pinned-vs-pr-head.patch`, recompiling only `llama-kv-cache.cpp`.
+- `bash scripts/v1.4/run.sh e1` runs A0/A1, the 11-token fixture with `BI` unset and then set.
+- `bash scripts/v1.4/run.sh a3` runs the five teacher-forced shapes on `results/ngram-token-fixtures.tsv`, with the flag off and on.
+- `bash scripts/v1.4/run.sh a4` runs the same shapes with the pinned KV length.
+- `bash scripts/v1.4/run.sh a5` runs the pair4 control: `singles` at `N_CTX=1024`.
+
+The steps take about 15 min for the build (ccache cold) and about 20 min for all runs. The logit dumps need about 21 GB. Concatenate the `logit-cmp` CSVs with a leading phase column, then run `scripts/v1.4/aggregate.py` to regenerate `results/v1.4/logit-cmp-by-sequence.csv`. The runner is a parameterized copy of the drivers that ran on 2026-11-25. It was checked with `bash -n`, and its patch step was checked against the sources that ran; it has not been rerun end to end.
+
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
 The stock build is upstream `787a5612fceef602503e5f0ee6133cdc9b8a85c1`. Apply each of the four patches independently to the pin. The target patch is cumulative with paired checkpoints, and keep-draft is cumulative with both. The exact-activation patch is a separate CPU experiment. The archived prototype used CPU-compiled server/common libraries over a shared CUDA runtime. The build script makes clean variant builds. The original CUDA 13.1/GCC 15 combination required a local, two-declaration CUDA-header exception-specification compatibility adjustment for rsqrt and rsqrtf. Use a supported toolchain pairing or supply an equivalent local toolchain workaround according to your CUDA installation. The upstream llama.cpp changes and NVIDIA headers have separate licensing.

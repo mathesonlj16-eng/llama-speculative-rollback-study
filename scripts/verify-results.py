@@ -198,4 +198,27 @@ assert all(r["n"] == "256" and r["m"] == "2048" for r in mg if r["variant"] == "
 assert st("default", "f32") == st("default", "q8_0") == ["OK"] * 9
 assert st("fixA_f32sort", "bf16") == ["OK"] * 9 and sorted(st("fixA_f32sort", "f16")) == ["FAIL"] * 2 + ["OK"] * 7
 assert st("fixA_plus_B_nommf", "f16") == ["ABORT_needs_sync_assert"]
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1 and v1.3.2 controls verified.")
+# v1.4.0: PR #32081 batch-invariant replay of the study fixtures
+e1 = csv_rows("e1-cuda.csv")
+e1off, e1on = csv_rows("v1.4/e1-flag-off.csv"), csv_rows("v1.4/e1-flag-on.csv")
+strip = lambda rows: [{k: v for k, v in r.items() if k != "backend"} for r in rows]
+assert strip(e1off) == strip(e1)   # flag off on the PR base reproduces the v1.0.0 archive
+assert sum(r["bit_identical_to_ref"] == "0" for r in e1off) == 24 and {r["plan"] for r in e1off if r["top"] != e1off[0]["top"]} == {"split5", "split6", "split8"}
+assert len(e1on) == 34 and all(r["bit_identical_to_ref"] == "1" and float(r["max_abs_diff_vs_ref"]) == 0 and r["top"] == e1on[0]["top"] for r in e1on)
+seqs = csv_rows("v1.4/logit-cmp-by-sequence.csv")
+tot = {}
+for r in seqs:
+    t = tot.setdefault((r["phase"], r["comparison"]), [0, 0, 0])
+    t[0] += int(r["positions"]); t[1] += int(r["nonzero"]); t[2] += int(r["argmax_differs"])
+assert len(tot) == 16 and all(v[0] == 1440 for v in tot.values())
+assert all(tot[("a3", f"off-singles-vs-{s}")][1] == 1440 for s in ("whole", "c4", "c8", "pair4"))
+assert [tot[("a3", f"on-singles-vs-{s}")][1:] for s in ("whole", "c4", "c8", "pair4")] == [[768, 0], [603, 0], [607, 0], [1051, 2]]
+assert all(tot[("a4", f"on-singles-vs-{s}")][1:] == [0, 0] for s in ("whole", "c4", "c8")) and tot[("a4", "on-singles-vs-pair4")][1:] == [209, 0]
+assert tot[("a5", "ctx1024-singles-vs-pair4")][1:] == [0, 0] and tot[("a5", "ctx2048-vs-ctx1024-singles")][1:] == [209, 0]
+for r in seqs:   # 256-cell boundary: flag-on single-sequence residual only where the span exceeds 256 tokens
+    if r["phase"] == "a3" and r["comparison"] == "on-singles-vs-whole":
+        assert (int(r["nonzero"]) > 0) == (int(r["prompt_tokens"]) + int(r["gen_tokens"]) - 1 > 256), r
+pair_a4 = {r["key"]: r for r in seqs if r["comparison"] == "on-singles-vs-pair4" and r["phase"] == "a4"}
+ctx_a5 = {r["key"]: r for r in seqs if r["comparison"] == "ctx2048-vs-ctx1024-singles"}
+assert all((pair_a4[k]["nonzero"], pair_a4[k]["first_nonzero_index"], pair_a4[k]["max_abs_diff"]) == (ctx_a5[k]["nonzero"], ctx_a5[k]["first_nonzero_index"], ctx_a5[k]["max_abs_diff"]) for k in pair_a4)
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2 and v1.4.0 controls verified.")
