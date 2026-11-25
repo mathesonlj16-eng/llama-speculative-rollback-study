@@ -49,10 +49,25 @@ Times in µs:
 - `FORCE_MMQ` is essential. Without it, N ≥ 64 goes to cuBLAS FP16 GEMM (`volta_h884gemm_*`), which is up to 22× slower than dp4a MMQ on this card.
 - Control: MMVQ, which has no MMA path, stayed within 1% between builds in the same session.
 
-## Possible fixes (for maintainers to judge)
+## Prior upstream decision
 
-- **Short term:** make the hint depend on the CUDA version. On CUDA ≥ 13, say that the Pascal path needs CUDA ≤ 12.x, or drop that part of the hint. A minor fix while there: the flag is printed as `DGGML_CUDA_FORCE_MMQ` and is missing its leading `-`.
-- **Longer term:** GTX 16xx devices are already detected by name (`turing_devices_without_mma`). That information could choose the dp4a MMQ path at runtime in an sm_75 build, instead of requiring a separate build for another architecture. Both code paths already exist. What's missing is host-side dispatch plus device code compiled without `TURING_MMA_AVAILABLE`, for example a second set of instantiations. I haven't prototyped this.
+[PR #15468](https://github.com/ggml-org/llama.cpp/pull/15468) proposed an option to disable MMA on Turing. It was closed without merging. The maintainer's reasoning:
+
+- Existing build options already give the same result.
+- Compiling both dp4a and MMA variants for CC 7.5 isn't worth the maintenance cost, given how few GTX 16xx GPUs are in use.
+
+The runtime warning that names the affected devices was the agreed alternative. This note doesn't reopen that decision. A runtime dp4a/MMA selection in sm_75 builds would mean the dual variants that were declined, so it isn't proposed here.
+
+## Suggested fix (for maintainers to judge)
+
+PR #15468 assumed that "existing build options" give users the faster path. With CUDA 13 that is no longer true: the suggested `61-virtual` target can't be compiled. The data above quantify what those users miss.
+
+The narrow fix is to make the hint depend on the CUDA version:
+
+- With CUDA ≥ 13, say that the Pascal path needs a CUDA 12.x toolkit, or drop that part of the hint.
+- Fix the flag spelling while there. The message prints `DGGML_CUDA_FORCE_MMQ` without its leading `-`.
+
+I haven't run the literal CUDA 12.x `61-virtual` build on this machine. The speedups above come from the source-level switch.
 
 ## Limits
 

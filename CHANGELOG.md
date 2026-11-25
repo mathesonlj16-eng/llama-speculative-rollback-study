@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Changed** `provenance/v1.2/cuda13-pascal-hint.md`. It now acknowledges upstream PR #15468, which was closed after the maintainer declined dual dp4a/MMA variants for CC 7.5. The rejected runtime-selection suggestion is gone. What remains is the CUDA-version-aware hint and the fix to the missing `-` in the flag.
+
 ## v1.2.0 (2026-11-25)
 
 Adds an operator-level supplement on CUDA `MUL_MAT` batch invariance on the GTX 1650. It asks whether the Pascal-style (dp4a) MMQ path changes the cost of the two batch-invariant options: diagnostic chunked MMVQ and the forced-MMQ mode of PR #32081. It does: at N ≥ 16, the PR's forced MMQ goes from 6–47% slower than chunked MMVQ to between 37% faster and 11% slower. Nothing in v1.0.0 or v1.1.0 changes.
