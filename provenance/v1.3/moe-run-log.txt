@@ -1,0 +1,12 @@
+2026-11-25T13:21:47-05:00 moe edits: 4
+2026-11-25T13:22:22-05:00 rebuilt pool-d4f-pr in 35 s
+2026-11-25T13:22:23-05:00 rebuilt pool-s75-pr in 1 s
+2026-11-25T13:22:39-05:00 J choice ncols=0: 
+2026-11-25T13:22:54-05:00 J choice ncols=unset: 
+2026-11-25T13:23:49-05:00 pool-d4f-pr ncols=unset a: exit=0 ok=54 fail=0
+2026-11-25T13:24:42-05:00 pool-d4f-pr ncols=unset b: exit=0 ok=54 fail=0
+2026-11-25T13:25:37-05:00 pool-d4f-pr ncols=0 a: exit=0 ok=54 fail=0
+2026-11-25T13:26:32-05:00 pool-s75-pr ncols=unset a: exit=0 ok=54 fail=0
+2026-11-25T13:27:27-05:00 pool-s75-pr ncols=unset b: exit=0 ok=54 fail=0
+2026-11-25T13:28:21-05:00 pool-s75-pr ncols=0 a: exit=0 ok=54 fail=0
+2026-11-25T13:28:21-05:00 DONE

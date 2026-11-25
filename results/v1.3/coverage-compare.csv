@@ -1,0 +1,7 @@
+test,build,cases,same_status,hashed,batch_hash_eq,serial_hash_eq
+oddk,pool-d4f-pr,80,80,80,80,80
+oddk,pool-s75-pr,80,80,80,80,80
+suite,pool-d4f-pr,208,208,208,180,180
+suite,pool-s75-pr,224,224,224,188,188
+types,pool-d4f-pr,312,312,312,312,312
+types,pool-s75-pr,312,312,312,312,312

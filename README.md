@@ -81,6 +81,8 @@ These results are operator-level only, from one card in one session. [v1.2.0 fin
 
 **v1.3.0: the tile-width pin is unnecessary.** PR #32081 pins MMQ to its narrowest tile width and runs one tile per block, with Stream-K off. Reading the kernels shows that on sm_75 each output's summation order doesn't depend on tile width; only Stream-K's K split changes it. With a host-only switch, a tile width that follows N, or one fixed at 64, gave the same bits as the pin on 750/750 cases per build, on both the dp4a and Turing MMA paths, with 0 invariance failures. On the dp4a path, invariant mode at N=512 then ran at 0.99–1.00× of default MMQ, down from 2.3–5.4×. The N=1 penalty, MMQ instead of MMVQ, is unchanged at 2.2–3.7×. The test covered 5 types and plain `MUL_MAT`; MMA timing needs a GPU with tensor cores. [v1.3.0 findings](provenance/v1.3/FINDINGS.md) · [Hash comparison](results/v1.3/hash-compare.csv) · [Timing](results/v1.3/perf-medians.csv) · [Patch](patches/v1.3/mmq-tile-width-switch.patch)
 
+v1.3.1 extends this to 13 quant types, fallback-config shapes, K values that aren't a multiple of 256, and quantized MoE (`MUL_MAT_ID`, seeded routing, tile widths up to 128). In every case the bits matched the pinned width. On the dp4a diagnostic build only, F16 MoE fails batch invariance whether the width is pinned or free; this is a separate, untraced issue. [v1.3.1 coverage](provenance/v1.3/coverage.md)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

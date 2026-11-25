@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.1 (2026-11-25)
+
+Extends v1.3.0's coverage. With Stream-K off, tile width still doesn't change the bits across 13 quant types, fallback-config M, K values that aren't a multiple of 256, and quantized MUL_MAT_ID with seeded routing at tile widths up to 128. The PR's own batch suite passes on stock sm_75.
+
+- **Added** `provenance/v1.3/coverage.md`, coverage and MoE summaries in `results/v1.3/` and `provenance/v1.3/`, the harness patch `patches/v1.3/test-backend-ops-moe-vs-pr-head.patch`, and the scripts.
+- **Noted** that, on the dp4a diagnostic build only, F16 MUL_MAT_ID fails the batch test whether J is pinned or free. This is unrelated to tile width; it may be an invariance gap on GPUs without Turing MMA, and hasn't been traced.
+- **Added** v1.3.1 checks in `scripts/verify-results.py`.
+
 ## v1.3.0 (2026-11-25)
 
 Tests whether PR #32081's batch-invariant MMQ needs to pin the tile width. On sm_75, for the 5 tested types, it doesn't: with Stream-K off, the outputs are bit-identical at any tile width. On the dp4a path, invariant mode then matches default MMQ at N=512.

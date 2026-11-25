@@ -1,0 +1,18 @@
+oddk  pool-d4f-pr  nc0       cases=80 {'OK': 80} ops={'MUL_MAT': 80}
+oddk  pool-d4f-pr  ncunset   cases=80 {'OK': 80} ops={'MUL_MAT': 80}
+oddk  pool-s75-pr  nc0       cases=80 {'OK': 80} ops={'MUL_MAT': 80}
+oddk  pool-s75-pr  ncunset   cases=80 {'OK': 80} ops={'MUL_MAT': 80}
+suite pool-d4f-pr  nc0       cases=210 {'OK': 210} ops={'MUL_MAT': 140, 'MUL_MAT_GLU': 16, 'MUL_MAT_ID': 30, 'FLASH_ATTN_EXT': 16, 'MUL_MAT_ATTN': 8}
+suite pool-d4f-pr  ncunset   cases=208 {'OK': 208} ops={'MUL_MAT': 140, 'MUL_MAT_GLU': 16, 'MUL_MAT_ID': 28, 'FLASH_ATTN_EXT': 16, 'MUL_MAT_ATTN': 8}
+suite pool-s75-pr  nc0       cases=224 {'OK': 224} ops={'MUL_MAT': 140, 'MUL_MAT_GLU': 16, 'MUL_MAT_ID': 36, 'FLASH_ATTN_EXT': 16, 'MUL_MAT_ATTN': 16}
+suite pool-s75-pr  ncunset   cases=224 {'OK': 224} ops={'MUL_MAT': 140, 'MUL_MAT_GLU': 16, 'MUL_MAT_ID': 36, 'FLASH_ATTN_EXT': 16, 'MUL_MAT_ATTN': 16}
+types pool-d4f-pr  nc0       cases=312 {'OK': 312} ops={'MUL_MAT': 312}
+types pool-d4f-pr  ncunset   cases=312 {'OK': 312} ops={'MUL_MAT': 312}
+types pool-s75-pr  nc0       cases=312 {'OK': 312} ops={'MUL_MAT': 312}
+types pool-s75-pr  ncunset   cases=312 {'OK': 312} ops={'MUL_MAT': 312}
+compare oddk pool-d4f-pr: common=80 same_status=80 hashed=80 batch_hash_eq=80 serial_hash_eq=80
+compare oddk pool-s75-pr: common=80 same_status=80 hashed=80 batch_hash_eq=80 serial_hash_eq=80
+compare suite pool-d4f-pr: common=208 same_status=208 hashed=208 batch_hash_eq=180 serial_hash_eq=180
+compare suite pool-s75-pr: common=224 same_status=224 hashed=224 batch_hash_eq=188 serial_hash_eq=188
+compare types pool-d4f-pr: common=312 same_status=312 hashed=312 batch_hash_eq=312 serial_hash_eq=312
+compare types pool-s75-pr: common=312 same_status=312 hashed=312 batch_hash_eq=312 serial_hash_eq=312

@@ -181,4 +181,12 @@ for r in csv_rows("v1.3/perf-medians.csv"):
     assert abs(f / d - float(r["free_over_def"])) < .0015 and abs(pn / d - float(r["pin_over_def"])) < .0015
     if r["N"] == "512":
         assert .99 <= f / d <= 1.004 and pn / d > 2.3
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0 and v1.3.0 controls verified.")
+# v1.3.1: coverage and MoE
+cc = {(r["test"], r["build"]): r for r in csv_rows("v1.3/coverage-compare.csv")}
+for t in ("types", "oddk"):
+    for b in ("pool-d4f-pr", "pool-s75-pr"):
+        r = cc[(t, b)]
+        assert r["cases"] == r["same_status"] == r["batch_hash_eq"] == r["serial_hash_eq"], r
+for r in csv_rows("v1.3/moe-compare.csv"):
+    assert r["cases"] == r["ok_free"] == r["free_batch_eq_serial"] == r["pinned_repeat_eq"] == r["free_eq_pinned"] == "52", r
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0 and v1.3.1 controls verified.")

@@ -1,0 +1,4 @@
+J used ncols=0: [8, 16, 32, 64, 128]
+J used ncols=unset: [8]
+pool-d4f-pr: cases=52 status(free)={'OK': 52} free batch==serial 52/52 | pinned A==B 52/52 | free==pinned 52/52
+pool-s75-pr: cases=52 status(free)={'OK': 52} free batch==serial 52/52 | pinned A==B 52/52 | free==pinned 52/52
