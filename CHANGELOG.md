@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.6.0 (2026-11-26)
+
+Adds fast kernels for PR #32081's batch-invariant mode on sm_75 that keep the PR's invariant bits, and an end-to-end speculative-decoding check.
+
+- **Found** that forced MMQ's per-output order on sm_75 is a serial fold in ascending K with exact integer block dots. A GEMV can reproduce it bit for bit without MMA instructions. The patch adds such kernels for:
+  - Q8_0 at N = 1..8;
+  - Q4_K and Q6_K at N = 1.
+
+  They are gated to sm_75 and include the v1.5.0 FA fix.
+- **Proved** bit identity with forced MMQ:
+  - operator sweeps over 6–8 adversarial input families on every model shape, including the 248320-row heads;
+  - deliberately wrong variants detected in essentially every cell;
+  - `test-backend-ops batch` 112/112;
+  - every fixture plan of the 2B target and 0.8B draft byte-identical to PR head + FA fix.
+
+  Default mode is unchanged.
+- **Measured** in invariant mode:
+  - 2B decode: 70.0–72.9 tok/s, 1.09–1.14× default mode, up from 0.31–0.33×;
+  - 0.8B decode: 1.04–1.07×;
+  - 2–8-token verify batches: 0.85–0.92× default's time, down from 1.66–2.97×;
+  - prefill unchanged.
+
+  Being faster than default reflects MMVQ on these shapes on this GPU.
+- **Proved** that greedy speculative decoding in invariant mode reproduces plain decoding's tokens and full logits byte for byte, for k = 1..7 and both rollback methods. Default mode differs from k = 2.
+- **Measured** that speculation is still slower than plain decoding at short context in both modes. Plain invariant decoding is the fastest configuration.
+- **Added** `patches/v1.6/`, `provenance/v1.6/` (FINDINGS.md, run-log.txt), `results/v1.6/` and `scripts/v1.6/` (harnesses, analysis, parameterized runner), plus v1.6.0 checks in `scripts/verify-results.py`.
+- **Changed** README, REPRODUCE and LICENSING.
+
 ## v1.5.3 (2026-11-25)
 
 A prior-art correction. No results change.

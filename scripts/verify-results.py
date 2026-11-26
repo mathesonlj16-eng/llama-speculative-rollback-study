@@ -262,4 +262,101 @@ sfails = sorted((r["hs"], r["L"], r["nb"], r["type_KV"]) for r in st_head if r["
 assert sfails == sorted([("256", "4096", nb, t) for nb in ("1", "4") for t in ("f16", "q8_0")] + [("128", L, nb, "q8_0") for L in ("1024", "4096") for nb in ("1", "4")]), sfails
 assert all(r["status"] == "OK" for r in st_head if r["L"] == "256")
 assert all(.88 <= int(r["differ"]) / int(r["total"]) <= .94 for r in st_head if r["status"] == "FAIL")
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0, v1.5.1 and v1.5.2 controls verified.")
+# v1.6.0: fast batch-invariant GEMV kernels (sm_75) and speculative decoding
+def sweep_rows(name):   # sweep files repeat the header once per harness invocation
+    rs = csv_rows(name); k = next(iter(rs[0])); return [r for r in rs if r[k] != k]
+def cand(rs, c, q=None): return [r for r in rs if r["cand"] == c and (q is None or r["qtype"] == q)]
+def failing(rs): return sum(int(r["bad_vs_ref"]) > 0 for r in rs)
+q8h = sweep_rows("v1.6/q8-sweep-harness-vs-pr-bi.csv")
+assert len(cand(q8h, "prod")) == 1240 and failing(cand(q8h, "prod")) == 0 and sum(int(r["fp64_bad"]) for r in q8h) == 0
+assert sum(int(r["compared"]) for r in cand(q8h, "prod")) == 109981760
+assert failing(cand(q8h, "ctrl_a_assoc")) == 1236
+assert all(failing(cand(q8h, c)) == 1240 for c in ("ctrl_b_unfused", "ctrl_c_splitK2", "ctrl_d_mmvq_quant", "ctrl_e_reverse"))
+q8n = sweep_rows("v1.6/q8-sweep-intree-n1-8.csv")   # every column of N = 1..8 (new kernels) vs N = 16 (forced MMQ)
+assert sum(int(r["ref_selfinv_bad"]) for r in q8n) == 0 and failing(cand(q8n, "prod")) == 0
+assert sum(int(r["compared"]) for r in cand(q8n, "prod")) == 85349888
+INFORMATIVE = {"normal", "zeros", "cancel", "single", "mid"}
+for name, comp in (("v1.6/kq-sweep-harness-vs-pr-bi.csv", 68640320), ("v1.6/kq-sweep-intree-n1.csv", 75962880)):
+    kq = sweep_rows(name)
+    assert sum(int(r["ref_selfinv_bad"]) for r in kq) == 0 and failing(cand(kq, "prod")) == 0 and sum(int(r["fp64_bad"]) for r in kq) == 0
+    assert sum(int(r["compared"]) for r in cand(kq, "prod")) == comp
+kq = sweep_rows("v1.6/kq-sweep-intree-n1.csv")
+inf = lambda c, q: [r for r in cand(kq, c, q) if r["family"] in INFORMATIVE]
+for c in ("ctrl_splitK2", "ctrl_fp32_dmA", "ctrl_m_first", "ctrl_mmvq_quant"):
+    assert failing(inf(c, "q4_K")) == len(inf(c, "q4_K")) == 480, c
+assert failing(inf("ctrl_assoc", "q4_K")) == 239 and failing(cand(kq, "ctrl_unfused_m", "q4_K")) == 0
+for c in ("ctrl_splitK2", "ctrl_flat_fold", "ctrl_reverse", "ctrl_mmvq_quant"):
+    assert failing(cand(kq, c, "q6_K")) == len(cand(kq, c, "q6_K")) == 306, c
+assert failing(cand(kq, "ctrl_fp32_scale", "q6_K")) == 0
+assert [r["family"] for r in cand(kq, "ctrl_tmp_fmul", "q6_K") if int(r["bad_vs_ref"]) > 0] == ["subnormal"] * 2
+for name in ("v1.6/variants-q8.csv", "v1.6/variants-kq.csv"):
+    assert all(r["bad"] == "0" for r in csv_rows(name))
+p1 = [r for r in csv_rows("v1.6/perf-q8-n1.csv") if int(r["m"]) >= 512]
+v3 = [float(r["bi-v3_med"]) / float(r["default_med"]) for r in p1]
+assert .77 <= min(v3) and max(v3) <= .962 and all(2.6 <= float(r["bi-mmq_med"]) / float(r["default_med"]) <= 5.14 for r in p1)
+pn = [r for r in csv_rows("v1.6/perf-q8-nb.csv") if int(r["m"]) >= 512 and 2 <= int(r["n"]) <= 8]
+assert len(pn) == 42 and all(r["default_runs"] == r["bi-nb_runs"] == r["bi-mmq_runs"] == "5" for r in pn)
+nb = [float(r["bi-nb_med"]) / float(r["default_med"]) for r in pn]
+assert .68 <= min(nb) and max(nb) <= 1.012 and all(1.35 <= float(r["bi-mmq_med"]) / float(r["default_med"]) <= 5.13 for r in pn)
+for r in csv_rows("v1.6/perf-kq-n1.csv"):
+    f = float(r["fast_med"]) / float(r["mmvq_med"]); q = float(r["mmq_med"]) / float(r["mmvq_med"])
+    assert (.77 <= f <= 1.08 and 3.18 <= q <= 5.84) if r["type"] == "q4_K" else (.90 <= f <= 1.23 and 2.53 <= q <= 4.18), r
+def tg(name):
+    b = {}
+    for r in csv_rows(name):
+        b.setdefault((r["label"].rsplit("-r", 1)[0], int(r["depth"])), []).append(int(r["tg_tokens"]) * 1000 / float(r["tg_ms"]))
+    assert all(len(v) == 5 for v in b.values()); return {k: median(v) for k, v in b.items()}
+t2 = tg("v1.6/bench-2b-decode.csv")
+for d in (-256, 256, 1024, 4096):
+    assert 1.09 <= t2[("bi-v3", d)] / t2[("def", d)] <= 1.14 and 69.9 <= t2[("bi-v3", d)] <= 72.9
+    assert .31 <= t2[("bi-mmq", d)] / t2[("def", d)] <= .33
+t08 = tg("v1.6/bench-08b-decode.csv")
+for d in (-256, 256, 1024, 4096):
+    assert 1.03 <= t08[("bi-fast", d)] / t08[("def", d)] <= 1.071 and .34 <= t08[("bi-mmq", d)] / t08[("def", d)] <= .38
+vb = {}
+for r in csv_rows("v1.6/verify-batches-2b.csv"):
+    if int(r["n"]) > 0: vb.setdefault((r["label"].rsplit("-r", 1)[0], int(r["n"])), []).append(float(r["ms_per_batch"]))
+assert all(len(v) == 5 for v in vb.values())
+vr = lambda c, n: median(vb[(c, n)]) / median(vb[("def", n)])
+assert all(.84 <= vr("bi-nb", n) <= .93 and 1.66 <= vr("bi-mmq", n) <= 2.97 for n in (2, 3, 4, 5, 6, 8))
+assert all(1.19 <= vr("bi-nb", n) <= 1.21 for n in (12, 16))
+checks = (root / "v1.6/model-checks.txt").read_text()
+assert checks.count("differ=0") == 5 and "DIFFERENT" not in checks and checks.count("112/112 tests passed") == 2
+assert checks.count(": identical") == 24 and checks.count("not bit-identical to own ref: 0 of 34") == 4
+assert {l.split()[0] for l in (root / "v1.6/dumps-q8v3-SHA256SUMS.txt").read_text().splitlines()} == {"ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc"}
+for name in ("e1-flag-on", "e1-flag-off"):
+    assert len(csv_rows(f"v1.6/{name}.csv")) == 34
+assert all(r["bit_identical_to_ref"] == "1" for r in csv_rows("v1.6/e1-flag-on.csv"))
+for s in ("whole", "c4", "c8", "pair4"):
+    lc = csv_rows(f"v1.6/logit-cmp/2b-singles-vs-{s}.csv")
+    assert len(lc) == 1440 and all(float(r["max_abs_diff"]) == 0 for r in lc)
+def tok(name):
+    d = {}
+    for line in (root / f"v1.6/spec/{name}.tok").read_text().splitlines():
+        a = line.split(); d[(int(a[0]), int(a[1]))] = [x.split(":") for x in a[2:]]
+    assert all(len(v) == 64 for v in d.values()); return d
+def differ(d, k, i): return sum(any(x[i] != y[i] for x, y in zip(d[(0, s)], d[(k, s)])) for s in range(19))
+for name in ("r1-bi-rs", "r1-bi-ckpt", "d1000-bi-rs"):   # invariant mode: speculation == plain, tokens and full-logit hashes
+    d = tok(name); assert all(differ(d, k, 0) == differ(d, k, 1) == 0 for k, _ in d if k), name
+d = tok("r1-def-rs")
+assert differ(d, 1, 1) == 0 and all(differ(d, k, 1) == 19 and differ(d, k, 0) == 4 for k in (2, 3, 4, 5, 7))
+d = tok("r1-def-ckpt"); assert differ(d, 1, 1) == 0 and all(differ(d, k, 1) == 19 and 4 <= differ(d, k, 0) <= 7 for k in (2, 3, 4, 5, 7))
+d = tok("d1000-def-rs"); assert all(differ(d, k, 1) == 19 and differ(d, k, 0) == 0 for k in (3, 7))
+pb, pd = tok("r1-bi-rs"), tok("r1-def-rs"); assert sum(any(x[0] != y[0] for x, y in zip(pb[(0, s)], pd[(0, s)])) for s in range(19)) == 3
+for a in ("bi", "def"):   # plain decoding with n_rs_seq 8 (rs) and 0 (ckpt): identical token and logit-hash streams
+    x, y = tok(f"r1-{a}-rs"), tok(f"r1-{a}-ckpt"); assert all(x[(0, s)] == y[(0, s)] for s in range(19)), a
+ts = {}
+for l in (root / "v1.6/spec/tok-SHA256SUMS.txt").read_text().splitlines():
+    h, f = l.split(); ts.setdefault(f.split("-", 1)[1] if f.startswith("r") else f, set()).add(h)
+assert all(len(ts[a + ".tok"]) == 1 for a in ("bi-rs", "def-rs", "bi-ckpt"))   # rounds 2 and 3 byte-identical to round 1
+sp = {}
+for f in (root / "v1.6/spec").glob("*.csv"):
+    for r in csv_rows(f"v1.6/spec/{f.name}"):
+        arm = r["label"].split("-", 1)[1] if r["label"].startswith("r") else r["label"]
+        x = sp.setdefault((arm, int(r["k"]), r["label"]), [0, 0]); x[0] += int(r["n_gen"]); x[1] += float(r["ms"])
+        assert r["redecode_bad"] == "0" or arm == "def-ckpt"
+tps = lambda a, k: median(v[0] * 1000 / v[1] for (aa, kk, _), v in sp.items() if (aa, kk) == (a, k))
+assert round(tps("bi-rs", 0), 1) == 66.5 and round(tps("def-rs", 0), 1) == 61.1 and round(tps("bi-ckpt", 0), 1) == 68.8
+assert all(tps("bi-rs", k) < tps("bi-rs", 0) and tps("def-rs", k) < tps("bi-rs", 0) for k in (1, 2, 3, 4, 5, 7))   # plain invariant fastest
+assert round(tps("d1000-bi-rs", 7) / tps("d1000-bi-rs", 0), 2) == 1.11
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0, v1.5.1, v1.5.2 and v1.6.0 controls verified.")

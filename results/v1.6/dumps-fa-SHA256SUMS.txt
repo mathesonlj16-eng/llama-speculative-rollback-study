@@ -1,0 +1,10 @@
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  mmq-n1-fa-on-c4.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  mmq-n1-fa-on-c8.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  mmq-n1-fa-on-pair4.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  mmq-n1-fa-on-singles.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  mmq-n1-fa-on-whole.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  pr-bi-fafix-on-c4.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  pr-bi-fafix-on-c8.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  pr-bi-fafix-on-pair4.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  pr-bi-fafix-on-singles.bin
+ec330c4e6eae9d849c48330e2dd603817af68bb28096d13eae31f4d316e929cc  pr-bi-fafix-on-whole.bin

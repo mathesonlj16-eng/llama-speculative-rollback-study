@@ -126,6 +126,36 @@ Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 
 - On the PR head, 8 of its 24 cases fail, including one decode token per sequence at long contexts.
 - With the v1.5.0 patch, all 64 cases in the combined suite pass. [Combined test patch](patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch)
 
+## Fast invariant kernels and exact speculative decoding (v1.6.0)
+
+With the v1.5.0 fix, invariant mode was bit-invariant on the fixtures, but decode ran at about 0.32× of default mode, because every quantized matmul went through forced MMQ.
+
+**The key fact.** On sm_75, forced MMQ computes each output as one serial fold in ascending K, with exact integer block dots. A matrix-vector kernel can reproduce that order bit for bit, without matrix-core instructions, and run at GEMV speed. v1.6.0 adds such kernels:
+- Q8_0 for 1–8 tokens per batch;
+- Q4_K and Q6_K for single tokens.
+
+They are gated to sm_75 and include the v1.5.0 FA fix.
+
+- **Correctness (proven by exact byte compares).**
+  - The kernels match forced MMQ on adversarial operator inputs and in `test-backend-ops batch`.
+  - Deliberately wrong variants fail.
+  - Every fixture plan of both models is byte-identical to PR head + FA fix, so they keep the PR's invariant bits.
+  - Default mode is unchanged.
+- **Speed (measured on this GTX 1650).**
+  - 2B decode in invariant mode: 70.0–72.9 tok/s, 1.09–1.14× default mode, up from 0.31–0.33×.
+  - Draft decode: 1.04–1.07×.
+  - Verify batches of 2–8 tokens: 0.85–0.92× default's time.
+  - Prefill is unchanged.
+
+  Being faster than default reflects MMVQ's speed on these shapes on this GPU.
+- **Speculative decoding.**
+  - In invariant mode, greedy speculation gives exactly plain decoding's tokens and full logits for every draft length 1–7.
+  - In default mode, logits change from a draft length of 2, and tokens change in up to 7 of 19 prompts.
+  - Speed doesn't change the study's conclusion: for this model pair on this GPU, speculation is still slower than plain decoding at short context, and plain invariant decoding is the fastest configuration measured.
+- **Prior art.** Per-token MMVQ for small batches ([#25618](https://github.com/ggml-org/llama.cpp/issues/25618)) and fixed-order invariant kernels are earlier work. This release's kernels reproduce *forced MMQ's* order instead, so the PR's invariant bits stay unchanged.
+
+[v1.6.0 findings](provenance/v1.6/FINDINGS.md) · [Patch](patches/v1.6/invariant-gemv-fafix-vs-pr-head.patch) · [Results](results/v1.6/) · [Harnesses](scripts/v1.6/)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

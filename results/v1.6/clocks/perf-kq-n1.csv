@@ -1,0 +1,15 @@
+1,bi-mmq,54, 780 MHz, 810 MHz
+1,default,62, 1785 MHz, 6120 MHz
+1,bi-fast,67, 1785 MHz, 6120 MHz
+2,bi-fast,63, 1785 MHz, 6120 MHz
+2,bi-mmq,65, 1785 MHz, 6120 MHz
+2,default,61, 1785 MHz, 6120 MHz
+3,default,63, 1785 MHz, 6120 MHz
+3,bi-fast,69, 1785 MHz, 6120 MHz
+3,bi-mmq,64, 1785 MHz, 6120 MHz
+4,bi-mmq,59, 1785 MHz, 6120 MHz
+4,bi-fast,60, 1785 MHz, 6120 MHz
+4,default,61, 1785 MHz, 6120 MHz
+5,bi-fast,62, 1785 MHz, 6120 MHz
+5,default,64, 1785 MHz, 6120 MHz
+5,bi-mmq,65, 1785 MHz, 6120 MHz

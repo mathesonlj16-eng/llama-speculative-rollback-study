@@ -1,0 +1,12 @@
+d1000-bi-rs,46, 1380 MHz, 6120 MHz
+d1000-def-rs,64, 1785 MHz, 6120 MHz
+r1-bi-rs,64, 1785 MHz, 6120 MHz
+r1-def-rs,67, 1785 MHz, 6120 MHz
+r1-bi-ckpt,62, 1785 MHz, 6120 MHz
+r1-def-ckpt,62, 1785 MHz, 6120 MHz
+r2-bi-ckpt,63, 1785 MHz, 6120 MHz
+r2-def-rs,66, 1785 MHz, 6120 MHz
+r2-bi-rs,71, 1785 MHz, 6120 MHz
+r3-bi-rs,64, 1785 MHz, 6120 MHz
+r3-bi-ckpt,61, 1785 MHz, 6120 MHz
+r3-def-rs,61, 1785 MHz, 6120 MHz

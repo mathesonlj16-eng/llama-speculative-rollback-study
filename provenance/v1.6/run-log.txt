@@ -1,0 +1,171 @@
+v1.6.0 run log: environment, inputs, timelines (times are local, UTC-05:00)
+
+== environment
+NVIDIA GeForce GTX 1650, 592.00, 4096 MiB, 1785 MHz, 6001 MHz
+Cuda compilation tools, release 13.2, V13.2.86
+Build cuda_13.2.r13.2/compiler.37953736_0
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+kernel: 6.18.58.1-microsoft-standard-WSL2
+build flags: CMAKE_BUILD_TYPE=Release GGML_CUDA=ON CMAKE_CUDA_ARCHITECTURES=75 (as scripts/v1.6/run.sh build), ccache
+
+== source
+PR #32081 head: 3f25ea199a36a9e83480b6dac0941bb82c96c5b9
+final patch: patches/v1.6/invariant-gemv-fafix-vs-pr-head.patch sha256 0dfcae6198cb0dbd1a3752d9d80ed82d4ef48696eac5bf482996af77fff1b4b5
+applied tree: git -C <worktree> diff 3f25ea199 -- ggml tests, plus untracked new files (the patch is that output)
+
+== models (sha256)
+e8bf47d40c5ba68baf8f3e503ee36710da6e8641cb0a670a508cff5b3f0cfbf7  Qwen3.5-2B-Q8_0.gguf
+b4e71cb32694733ba40c69e595a0524dfbc2cabe3c28fb7fef99eed4cf8730bf  Qwen3.5-0.8B-Q4_K_M.gguf
+
+== timeline: Arm B, Q8_0 N=1 v1 in-tree
+2026-11-25T20:37:10-05:00 configure
+2026-11-25T20:37:46-05:00 build start
+2026-11-25T20:49:20-05:00 build done
+2026-11-25T20:50:34-05:00 batch fast-on
+2026-11-25T20:51:26-05:00 batch fast-off
+2026-11-25T20:52:57-05:00 perf rep 1
+2026-11-25T20:53:39-05:00 perf rep 2
+2026-11-25T20:54:20-05:00 perf rep 3
+2026-11-25T20:55:01-05:00 perf rep 4
+2026-11-25T20:55:42-05:00 perf rep 5
+2026-11-25T20:56:59-05:00 bench rep 1
+2026-11-25T20:58:13-05:00 bench rep 2
+2026-11-25T20:59:28-05:00 bench rep 3
+2026-11-25T21:00:43-05:00 bench rep 4
+2026-11-25T21:01:58-05:00 bench rep 5
+2026-11-25T21:01:58-05:00 done
+
+== timeline: Fast N=1 + FA fix
+2026-11-25T21:24:55-05:00 configure
+2026-11-25T21:25:34-05:00 build start
+2026-11-25T21:37:43-05:00 build done
+2026-11-25T21:37:48-05:00 compiled
+2026-11-25T21:38:02-05:00 e1-done
+2026-11-25T21:39:05-05:00 dump mmq-n1-fa singles elapsed_s=63
+2026-11-25T21:39:27-05:00 dump mmq-n1-fa whole elapsed_s=22
+2026-11-25T21:40:01-05:00 dump mmq-n1-fa c4 elapsed_s=34
+2026-11-25T21:40:24-05:00 dump mmq-n1-fa c8 elapsed_s=23
+2026-11-25T21:40:48-05:00 dump mmq-n1-fa pair4 elapsed_s=24
+2026-11-25T21:43:48-05:00 dump pr-bi-fafix singles elapsed_s=180
+2026-11-25T21:44:09-05:00 dump pr-bi-fafix whole elapsed_s=21
+2026-11-25T21:44:41-05:00 dump pr-bi-fafix c4 elapsed_s=32
+2026-11-25T21:45:04-05:00 dump pr-bi-fafix c8 elapsed_s=23
+2026-11-25T21:45:27-05:00 dump pr-bi-fafix pair4 elapsed_s=23
+2026-11-25T21:46:44-05:00 checks-done
+2026-11-25T21:48:04-05:00 bench rep 1
+2026-11-25T21:49:19-05:00 bench rep 2
+2026-11-25T21:50:35-05:00 bench rep 3
+2026-11-25T21:51:50-05:00 bench rep 4
+2026-11-25T21:53:06-05:00 bench rep 5
+2026-11-25T21:53:06-05:00 done
+
+== timeline: K-quant N=1 v1
+2026-11-25T22:12:25-05:00 build start
+2026-11-25T22:13:14-05:00 build done
+2026-11-25T22:13:20-05:00 compiled
+2026-11-25T22:16:43-05:00 sweep-done
+2026-11-25T22:18:26-05:00 batch-done
+2026-11-25T22:27:48-05:00 perf-done
+2026-11-25T22:29:49-05:00 dumps singles
+2026-11-25T22:30:12-05:00 dumps whole
+2026-11-25T22:30:50-05:00 dumps c4
+2026-11-25T22:31:24-05:00 dumps c8
+2026-11-25T22:31:58-05:00 dumps pair4
+2026-11-25T22:32:46-05:00 checks-done
+2026-11-25T22:33:35-05:00 bench rep 1
+2026-11-25T22:34:22-05:00 bench rep 2
+2026-11-25T22:35:09-05:00 bench rep 3
+2026-11-25T22:35:56-05:00 bench rep 4
+2026-11-25T22:36:43-05:00 bench rep 5
+2026-11-25T22:36:43-05:00 done
+
+== timeline: K-quant N=1 v3
+2026-11-25T22:45:06-05:00 build start
+2026-11-25T22:45:32-05:00 build done
+2026-11-25T22:45:39-05:00 compiled
+2026-11-25T22:49:05-05:00 sweep-done
+2026-11-25T22:50:48-05:00 batch-done
+2026-11-25T22:59:53-05:00 perf-done
+2026-11-25T23:01:44-05:00 dumps singles
+2026-11-25T23:02:07-05:00 dumps whole
+2026-11-25T23:02:45-05:00 dumps c4
+2026-11-25T23:03:16-05:00 dumps c8
+2026-11-25T23:03:50-05:00 dumps pair4
+2026-11-25T23:04:33-05:00 checks-done
+2026-11-25T23:05:22-05:00 bench rep 1
+2026-11-25T23:06:09-05:00 bench rep 2
+2026-11-25T23:06:55-05:00 bench rep 3
+2026-11-25T23:07:42-05:00 bench rep 4
+2026-11-25T23:08:28-05:00 bench rep 5
+2026-11-25T23:08:28-05:00 done
+
+== timeline: Q8_0 N=1 v3
+2026-11-25T23:14:01-05:00 build start
+2026-11-25T23:14:09-05:00 build done
+2026-11-25T23:14:14-05:00 compiled
+2026-11-25T23:16:05-05:00 sweep-done
+2026-11-25T23:17:47-05:00 batch-done
+2026-11-25T23:22:43-05:00 perf-done
+2026-11-25T23:23:49-05:00 dump singles
+2026-11-25T23:24:14-05:00 dump whole
+2026-11-25T23:24:54-05:00 dump c4
+2026-11-25T23:25:25-05:00 dump c8
+2026-11-25T23:25:58-05:00 dump pair4
+2026-11-25T23:26:27-05:00 checks-done
+2026-11-25T23:28:13-05:00 bench rep 1
+2026-11-25T23:29:51-05:00 bench rep 2
+2026-11-25T23:31:29-05:00 bench rep 3
+2026-11-25T23:33:07-05:00 bench rep 4
+2026-11-25T23:34:45-05:00 bench rep 5
+2026-11-25T23:34:45-05:00 done
+
+== timeline: Small-batch cost before the N=2..8 kernel
+2026-11-26T14:42:46-05:00 build start
+2026-11-26T14:43:22-05:00 compiled
+2026-11-26T15:02:29-05:00 perf-done
+2026-11-26T15:03:57-05:00 nb rep 1
+2026-11-26T15:05:24-05:00 nb rep 2
+2026-11-26T15:06:51-05:00 nb rep 3
+2026-11-26T15:08:17-05:00 nb rep 4
+2026-11-26T15:09:43-05:00 nb rep 5
+2026-11-26T15:09:43-05:00 done
+
+== timeline: Q8_0 N=2..8 kernel
+2026-11-26T15:14:37-05:00 build start
+2026-11-26T15:14:50-05:00 compiled
+2026-11-26T15:16:40-05:00 sweep-done
+2026-11-26T15:18:25-05:00 batch-done
+2026-11-26T15:19:31-05:00 dump singles
+2026-11-26T15:19:53-05:00 dump whole
+2026-11-26T15:20:15-05:00 dump c4
+2026-11-26T15:20:36-05:00 dump c8
+2026-11-26T15:20:56-05:00 dump pair4
+2026-11-26T15:20:56-05:00 checks-done
+2026-11-26T15:43:28-05:00 perf-done
+2026-11-26T15:45:43-05:00 nb rep 1
+2026-11-26T15:47:54-05:00 nb rep 2
+2026-11-26T15:50:04-05:00 nb rep 3
+2026-11-26T15:52:14-05:00 nb rep 4
+2026-11-26T15:54:24-05:00 nb rep 5
+2026-11-26T15:54:24-05:00 done
+
+== timeline: Speculative decoding
+2026-11-26T16:04:11-05:00 compiled
+2026-11-26T16:09:33-05:00 d1000-bi-rs
+2026-11-26T16:13:58-05:00 d1000-def-rs
+2026-11-26T16:18:05-05:00 r1-bi-rs
+2026-11-26T16:21:49-05:00 r1-def-rs
+2026-11-26T16:26:03-05:00 r1-bi-ckpt
+2026-11-26T16:29:57-05:00 r1-def-ckpt
+2026-11-26T16:34:14-05:00 r2-bi-ckpt
+2026-11-26T16:38:04-05:00 r2-def-rs
+2026-11-26T16:42:11-05:00 r2-bi-rs
+2026-11-26T16:46:16-05:00 r3-bi-rs
+2026-11-26T16:50:31-05:00 r3-bi-ckpt
+2026-11-26T16:54:14-05:00 r3-def-rs
+2026-11-26T16:54:14-05:00 done
+
+== notes
+- The logit dumps (.bin, 64.4 GB in all) were deleted after the comparisons; their sha256 lists are in results/v1.6/dumps-*-SHA256SUMS.txt.
+- Two speculative-decoding attempts before the final run ran out of GPU memory (both models on a 4 GB card, n_batch 2048 / n_ubatch 512); they produced no results that are used.
+- During part of the small-batch and speculative runs the laptop was switched to a 'Turbo' power profile and in use; recorded SM clocks stayed at 1785 MHz (results/v1.6/clocks/).

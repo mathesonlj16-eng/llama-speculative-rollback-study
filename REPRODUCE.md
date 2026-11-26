@@ -92,6 +92,20 @@ Run the v1.4.0 `build` and `e1` steps first. Then:
 
 Aggregate the `logit-cmp` CSVs with `scripts/v1.4/aggregate.py`, using phase `fa`. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
 
+### v1.6.0 fast invariant kernels and speculative decoding
+
+The kernels need an sm_75 (Turing) GPU; on other architectures the gate leaves the PR's forced MMQ in place. First run the v1.4.0 `build` and `e1` steps and the v1.5.0 `build` and `check` steps, whose outputs v1.6.0 compares against. Then, with both models (`TARGET`, `DRAFT`), run `scripts/v1.6/run.sh` with each of these steps:
+- **`build`** checks both model digests and builds `pr-bi-gemv`: PR head plus `patches/v1.6/invariant-gemv-fafix-vs-pr-head.patch`, about 12 min with ccache cold. It also builds the replay, timing and speculative-decoding tools, and the operator harnesses linked to both `pr-bi` and `pr-bi-gemv`.
+- **`sweep`** runs the operator bit-identity and control sweeps and the kernel-variant sweep (about 15 min; mainly host-side data generation).
+- **`batch`** runs `test-backend-ops batch -o MUL_MAT` with the kernels on and off. Expected: 112/112 for both.
+- **`model`** runs the E1 and 19-sequence fixtures (about 5 min, about 7 GB of dumps). Expected:
+  - every file is byte-identical to the v1.5.0 `pr-bi-fafix` outputs;
+  - all five dumps have the sha256 in `results/v1.6/dumps-q8v3-SHA256SUMS.txt`.
+- **`perf`**, **`bench`** and **`verify`** run the matched timings: per op, decode, and verify-sized batches, 5 rounds each, about 25 min in all.
+- **`spec`** runs speculative decoding vs plain decoding in both modes (about 50 min). It needs about 2.7 GB of GPU memory. It prints the token and logit-hash comparisons and the timing summary.
+
+The archived runs timed Q8_0 N = 1, the K-quants and N = 2..8 in separate `perf` invocations; the runner combines them in one. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
+
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
 The stock build is upstream `787a5612fceef602503e5f0ee6133cdc9b8a85c1`. Apply each of the four patches independently to the pin. The target patch is cumulative with paired checkpoints, and keep-draft is cumulative with both. The exact-activation patch is a separate CPU experiment. The archived prototype used CPU-compiled server/common libraries over a shared CUDA runtime. The build script makes clean variant builds. The original CUDA 13.1/GCC 15 combination required a local, two-declaration CUDA-header exception-specification compatibility adjustment for rsqrt and rsqrtf. Use a supported toolchain pairing or supply an equivalent local toolchain workaround according to your CUDA installation. The upstream llama.cpp changes and NVIDIA headers have separate licensing.

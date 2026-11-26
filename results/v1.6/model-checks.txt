@@ -1,0 +1,39 @@
+# Final build (Q8_0 N=1..8 + K-quant N=1 + FA fix), 2B target (nb run)
+sweep: ref_selfinv_bad (cols of N=1..8 vs N=16 forced MMQ) = 0; prod bad = 0 of 85349888; control cells failing = 2829 of 2830
+batch-nb:   112/112 tests passed exit=0
+batch-nb0:   112/112 tests passed exit=0
+2B e1 BI on: nb vs pr-bi-fafix files=34 differ=0
+2B e1 BI on: plans not bit-identical to own ref: 0 of 34
+2B e1 BI off: nb build vs PR head default files=34 differ=0
+2B plan singles nb vs pr-bi-fafix/q8v3 checksum (BI on): identical
+2B plan whole nb vs pr-bi-fafix/q8v3 checksum (BI on): identical
+2B plan c4 nb vs pr-bi-fafix/q8v3 checksum (BI on): identical
+2B plan c8 nb vs pr-bi-fafix/q8v3 checksum (BI on): identical
+2B plan pair4 nb vs pr-bi-fafix/q8v3 checksum (BI on): identical
+# Q8_0 v3 N=1 build, 2B target (q8v3 run)
+2B e1 BI on: q8v3 vs pr-bi-fafix files=34 differ=0
+2B e1 BI off: q8v3 build vs PR head default files=34 differ=0
+2B e1 BI on: plans not bit-identical to own ref: 0 of 34
+2B plan singles q8v3 vs pr-bi-fafix (BI on): identical
+2B plan whole q8v3 vs pr-bi-fafix (BI on): identical
+2B plan c4 q8v3 vs pr-bi-fafix (BI on): identical
+2B plan c8 q8v3 vs pr-bi-fafix (BI on): identical
+2B plan pair4 q8v3 vs pr-bi-fafix (BI on): identical
+2B plan whole vs singles (BI on, q8v3): identical
+2B plan c4 vs singles (BI on, q8v3): identical
+2B plan c8 vs singles (BI on, q8v3): identical
+2B plan pair4 vs singles (BI on, q8v3): identical
+# K-quant v3 N=1 build, 0.8B draft (kq v3 run)
+draft e1 BI on: fast-kq vs kq-off files=34 differ=0
+draft e1 on-fast: plans not bit-identical to own ref: 0 of 34
+draft e1 on-kqoff: plans not bit-identical to own ref: 0 of 34
+draft plan singles fast-kq vs kq-off (BI on): identical
+draft plan singles vs singles (BI on, fast): identical
+draft plan whole fast-kq vs kq-off (BI on): identical
+draft plan whole vs singles (BI on, fast): identical
+draft plan c4 fast-kq vs kq-off (BI on): identical
+draft plan c4 vs singles (BI on, fast): identical
+draft plan c8 fast-kq vs kq-off (BI on): identical
+draft plan c8 vs singles (BI on, fast): identical
+draft plan pair4 fast-kq vs kq-off (BI on): identical
+draft plan pair4 vs singles (BI on, fast): identical
