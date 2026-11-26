@@ -113,6 +113,10 @@ Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 
 - On the PR head, 7 of its 16 boundary-crossing cases fail. With the v1.5.0 patch, all 40 cases pass.
 - It needs no model and runs in seconds. [Test write-up](provenance/v1.5/padkv-test.md) · [Test patch](patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch)
 
+**v1.5.2: two sequences in one call.** A second test runs two sequences as separate KV streams in one flash-attention call, as with two server slots, and compares that with one call per sequence. The KV length is the same in both.
+- On the PR head, 8 of its 24 cases fail, including one decode token per sequence at long contexts.
+- With the v1.5.0 patch, all 64 cases in the combined suite pass. [Combined test patch](patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

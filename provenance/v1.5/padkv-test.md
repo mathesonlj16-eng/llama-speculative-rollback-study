@@ -1,4 +1,4 @@
-# v1.5.1: operator-level reproduction of the FA batch-invariance gap (2026-11-25)
+# v1.5.1–v1.5.2: operator-level reproduction of the FA batch-invariance gap (2026-11-25)
 
 **Where things are:**
 - Per-case results: [`fa-padkv-test.csv`](../../results/v1.5/fa-padkv-test.csv)
@@ -50,7 +50,43 @@ Compile and link took 36 s; each run takes seconds.
 
 **Crossings that pass:** every p0 = 1020 case (1024 → 1280 cells), and the PR shape at 250, 255 and at 500 with Q8_0. In those cases the `parallel_blocks` search picks the same split for both lengths. Whether the gap shows depends on the head count and the lengths involved.
 
+## v1.5.2: two sequences in one call
+
+**Patch.** [`test-backend-ops-fa-padkv-streams-vs-pr-head.patch`](../../patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch) is a superset of the patch above and applies cleanly to `3f25ea199`. It adds `test_flash_attn_ext_batch_inv_streams`. Per-case results: [`fa-streams-test.csv`](../../results/v1.5/fa-streams-test.csv).
+
+**What the test does.**
+- Two sequences go in separate KV streams in one FA call (`Q->ne[3]` = 2), as with llama.cpp's non-unified KV cache and two slots.
+- The same queries are also computed with one FA call per sequence (`Q->ne[3]` = 1).
+- The K/V length `L` and the causal masks are identical in both, so only the stream count differs.
+- This exercises the second half of the v1.5.0 patch, which takes `Q->ne[3]` out of the split sizing (`fattn-common.cuh:1263` on the PR head).
+
+**Cases.** 24 in total:
+- KV types: F16 and Q8_0.
+- Head shapes (hs, nh_kv, gqa): (256, 2, 4) and (128, 8, 4).
+- L ∈ {256, 1024, 4096}.
+- nb ∈ {1, 4} tokens per sequence.
+
+| Cases | PR head | PR head + FA patch |
+|---|---|---|
+| PR's own FA cases (16) | 16 OK | 16 OK |
+| padkv (24) | 17 OK, 7 FAIL | 24 OK |
+| streams (24) | **16 OK, 8 FAIL** | **24 OK** |
+| Total | 49/64 | **64/64** |
+
+**Stream failures on the PR head:**
+- Qwen shape at L = 4096, nb ∈ {1, 4}, F16 and Q8_0.
+- PR shape with Q8_0 at L ∈ {1024, 4096}, nb ∈ {1, 4}.
+- 88–93 % of elements differ, with max diff 1.1e-8 to 2.6e-8.
+- Every L = 256 case passes, because the `ntiles_KV` clamp leaves the split unchanged.
+
+**The failures include nb = 1.** In invariant mode on the PR head, one decode token per sequence in a two-sequence batch doesn't match single-sequence decoding at long contexts. That is the study's two-slot setting.
+
+**Reproducibility.** The padkv cases were rerun in this binary. Every case's pass/fail status is identical to the v1.5.1 run. `test-backend-ops` draws fresh random inputs each run, so for the 7 failing cases the differing-element counts vary by under 2 % between the two runs. The max diffs stay between 3.0e-8 and 4.5e-8.
+
+Compile and link took 37 s. Runner: `bash scripts/v1.5/run.sh streams`.
+
 ## Limits
 
-- One GPU, the vector FA kernel only, and one sequence per test (`Q->ne[3]` = 1). The v1.5.0 patch also removes the dependence on the number of sequences, but this test does not exercise it.
+- One GPU and the vector FA kernel only.
+- The stream test covers two streams with equal K/V length. It does not combine different stream counts with different padded lengths.
 - Nothing has been posted upstream.

@@ -1,8 +1,8 @@
 #!/bin/bash
 # v1.5.0: invariant-mode flash-attention KV-split fix on PR #32081 head: correctness and cost.
-# Usage: TARGET=/path/to/target.gguf bash scripts/v1.5/run.sh build|check|bench|padkv
+# Usage: TARGET=/path/to/target.gguf bash scripts/v1.5/run.sh build|check|bench|padkv|streams
 # Run `bash scripts/v1.4/run.sh build` first: it provides the unpatched build, the patched replay tools and logit-cmp.
-# Parameterized copy of the archived drivers (driver-fa.sh, driver-bench.sh, driver-padkv.sh); see provenance/v1.5/FINDINGS.md.
+# Parameterized copy of the archived drivers (driver-fa.sh, driver-bench.sh, driver-padkv.sh, driver-streams.sh); see provenance/v1.5/FINDINGS.md.
 set -euo pipefail
 R=${SM75_ROOT:-$HOME/research/sm75-batch-invariance}; Q=$R/qwen-bi; A=$Q/fa
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
@@ -56,6 +56,14 @@ padkv)  # v1.5.1: operator-level FA test with llama.cpp's padded K/V length, aga
   for v in pr-bi pr-bi-fafix; do b=$R/build/$v/bin
     c++ -O3 $Q/padkv/tbo.o -o $Q/padkv/tbo-$v -Wl,-rpath,$b $b/libggml.so.1.0.0 $b/libggml-cpu.so.1.0.0 $b/libggml-cuda.so.1.0.0       $b/libggml-base.so.1.0.0 /usr/local/cuda-13.2/targets/x86_64-linux/lib/stubs/libcuda.so
     $Q/padkv/tbo-$v batch -o FLASH_ATTN_EXT -b CUDA0 > $Q/padkv/run-$v.txt 2>&1 && echo "$v: pass" || echo "$v: FAIL (exit $?)"
+  done ;;
+streams)  # v1.5.2: padkv plus two-sequence (stream-count) FA test, same procedure as padkv
+  P=$(mktemp -d); mkdir -p $P/tests $Q/streams; cp $W0/tests/test-backend-ops.cpp $P/tests/
+  patch -p1 -d $P < $REPO/patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch
+  c++ -DGGML_BACKEND_SHARED -DGGML_SHARED -DGGML_USE_CPU -DGGML_USE_CUDA -I$W0/ggml/include -O3 -DNDEBUG -std=c++17     -c $P/tests/test-backend-ops.cpp -o $Q/streams/tbo.o
+  for v in pr-bi pr-bi-fafix; do b=$R/build/$v/bin
+    c++ -O3 $Q/streams/tbo.o -o $Q/streams/tbo-$v -Wl,-rpath,$b $b/libggml.so.1.0.0 $b/libggml-cpu.so.1.0.0 $b/libggml-cuda.so.1.0.0       $b/libggml-base.so.1.0.0 /usr/local/cuda-13.2/targets/x86_64-linux/lib/stubs/libcuda.so
+    $Q/streams/tbo-$v batch -o FLASH_ATTN_EXT -b CUDA0 > $Q/streams/run-$v.txt 2>&1 && echo "$v: pass" || echo "$v: FAIL (exit $?)"
   done ;;
 *) echo "unknown step $1" >&2; exit 2 ;;
 esac

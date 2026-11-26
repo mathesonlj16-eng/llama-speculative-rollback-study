@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.5.2 (2026-11-25)
+
+Covers the second half of the v1.5.0 FA patch: the split must not depend on the number of sequences in the call.
+
+- **Added** `test_flash_attn_ext_batch_inv_streams` in `patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch`, a superset of the v1.5.1 test patch. It runs two sequences as separate KV streams in one FA call (`Q->ne[3]` = 2) and compares that with one call per sequence, at equal K/V length.
+- **Found** that on the PR head 8 of its 24 cases fail, including nb = 1, i.e. two-slot decoding vs one-slot. They fail at L = 4096 for the Qwen shape and with Q8_0 at L ≥ 1024 for the PR shape, with 88–93 % of elements differing. With the v1.5.0 patch all 64 cases pass.
+- **Rerun** of the v1.5.1 cases in the new binary: every pass/fail status is the same. The counts vary slightly because the inputs are random.
+- **Added** `results/v1.5/fa-streams-test.csv`, a v1.5.2 section in `provenance/v1.5/padkv-test.md`, a `streams` step in `scripts/v1.5/run.sh`, and v1.5.2 checks in `scripts/verify-results.py`.
+- **Changed** README and REPRODUCE.
+
 ## v1.5.1 (2026-11-25)
 
 Adds an operator-level reproduction of the flash-attention gap from v1.4.0 and v1.5.0. No model is needed.

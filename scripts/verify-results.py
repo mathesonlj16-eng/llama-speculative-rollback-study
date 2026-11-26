@@ -251,4 +251,15 @@ assert all(r["status"] == "OK" for r in head if not crosses(r))      # controls 
 fails = sorted((r["hs"], r["nh"], r["p0"], r["type_KV"]) for r in head if r["status"] == "FAIL")
 assert fails == sorted([(h, n, p, t) for h, n in (("256", "2"),) for p in ("250", "255", "500") for t in ("f16", "q8_0")] + [("128", "8", "500", "f16")]), fails
 assert all(crosses(r) and 0 < int(r["differ"]) < int(r["total"]) for r in head if r["status"] == "FAIL")
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0 and v1.5.1 controls verified.")
+# v1.5.2: two-sequence (stream-count) FA test
+sk = csv_rows("v1.5/fa-streams-test.csv")
+assert len(sk) == 128 and all(r["status"] == "OK" for r in sk if r["build"] == "pr-head+fa-fix" or r["test"] == "pr_fa_batch_inv")
+key = lambda r: (r["build"], r["hs"], r["nh"], r["p0"], r["nb"], r["type_KV"])
+assert {key(r): r["status"] for r in sk if r["test"] == "padkv"} == {key(r): r["status"] for r in pk if r["test"] == "padkv"}   # v1.5.1 statuses reproduce
+st_head = [r for r in sk if r["build"] == "pr-head" and r["test"] == "streams"]
+assert len(st_head) == 24 and all(r["streams"] == "2" for r in st_head)
+sfails = sorted((r["hs"], r["L"], r["nb"], r["type_KV"]) for r in st_head if r["status"] == "FAIL")
+assert sfails == sorted([("256", "4096", nb, t) for nb in ("1", "4") for t in ("f16", "q8_0")] + [("128", L, nb, "q8_0") for L in ("1024", "4096") for nb in ("1", "4")]), sfails
+assert all(r["status"] == "OK" for r in st_head if r["L"] == "256")
+assert all(.88 <= int(r["differ"]) / int(r["total"]) <= .94 for r in st_head if r["status"] == "FAIL")
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0, v1.5.1 and v1.5.2 controls verified.")

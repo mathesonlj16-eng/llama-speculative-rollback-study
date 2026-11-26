@@ -88,7 +88,7 @@ Run the v1.4.0 `build` and `e1` steps first. Then:
   It takes about 9 min and writes about 12 GB of dumps.
 - `bash scripts/v1.5/run.sh bench` runs 20 interleaved timing runs (about 9 min) and prints medians.
 
-`bash scripts/v1.5/run.sh padkv` (v1.5.1) applies `patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch` to a copy of the PR head's `tests/test-backend-ops.cpp`. It compiles that copy once, links it against both builds, and runs `test-backend-ops batch -o FLASH_ATTN_EXT -b CUDA0`. The run takes about a minute and needs no model. Expected: 33/40 on the PR head (exit 1) and 40/40 with the patch.
+`bash scripts/v1.5/run.sh padkv` (v1.5.1) applies `patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch` to a copy of the PR head's `tests/test-backend-ops.cpp`. It compiles that copy once, links it against both builds, and runs `test-backend-ops batch -o FLASH_ATTN_EXT -b CUDA0`. The run takes about a minute and needs no model. Expected: 33/40 on the PR head (exit 1) and 40/40 with the patch. `bash scripts/v1.5/run.sh streams` (v1.5.2) does the same with `patches/v1.5/test-backend-ops-fa-padkv-streams-vs-pr-head.patch`, which adds the two-sequence test. Expected: 49/64 on the PR head and 64/64 with the patch. The failing cases are stable between runs; their differing-element counts vary slightly, because the inputs are random.
 
 Aggregate the `logit-cmp` CSVs with `scripts/v1.4/aggregate.py`, using phase `fa`. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
 
