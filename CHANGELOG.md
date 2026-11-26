@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.5.3 (2026-11-25)
+
+A prior-art correction. No results change.
+
+- **Credited** makoni's 2026-11-03 patch in [issue #25618](https://github.com/ggml-org/llama.cpp/issues/25618). It already makes the flash-attention KV split independent of the padded KV length: no `ntiles_KV` clamp, a search capped at one wave, per-column sizing. v1.4.0–v1.5.2 presented the v1.5.0 change without this reference. The issue also reports a symptom close to this study's.
+- **Credited** [PR #16016](https://github.com/ggml-org/llama.cpp/pull/16016) (September 2025, open) as earlier deterministic-attention work.
+- **Changed** the README's v1.5.0 paragraph and the v1.4/v1.5 write-ups. They now describe v1.5.0 as the earlier approach applied to PR #32081. What they claim as the study's own:
+  - the regression in #32081;
+  - removing the `Q->ne[3]` term, which #25618 keeps;
+  - the `test-backend-ops` regression cases;
+  - the cost measurement.
+
 ## v1.5.2 (2026-11-25)
 
 Covers the second half of the v1.5.0 FA patch: the split must not depend on the number of sequences in the call.

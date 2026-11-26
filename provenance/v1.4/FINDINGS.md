@@ -112,6 +112,8 @@ With both handled, every grouping tested is bit-identical.
 - Other GPUs, quantizations and models.
 - Timing: these were correctness-only runs. The flag-on `singles` dump took 186 s against 59 s flag off, from one run each.
 
+**Related prior work (added in v1.5.3).** [Issue #25618](https://github.com/ggml-org/llama.cpp/issues/25618) (opened 2026-07-13) reports a related symptom: greedy speculative output diverging on quantized targets. makoni's 2026-11-03 patch in that issue already makes the FA split independent of `ntiles_KV`. [PR #16016](https://github.com/ggml-org/llama.cpp/pull/16016) proposed deterministic attention in 2025. v1.4.0 was written without these references.
+
 **Possible fixes (not implemented).** In invariant mode, either:
 - choose the FA `parallel_blocks` independently of `ntiles_KV`, or
 - pin `n_kv` to the cache size, at the cost of attending over masked cells.

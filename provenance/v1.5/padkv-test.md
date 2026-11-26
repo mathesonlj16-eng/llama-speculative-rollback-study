@@ -6,6 +6,8 @@
 - Runner: `bash scripts/v1.5/run.sh padkv`
 - Raw logs are archived outside this repository.
 
+**Prior art.** The FA fix these tests exercise follows makoni's earlier patch in [issue #25618](https://github.com/ggml-org/llama.cpp/issues/25618); see [FINDINGS.md](FINDINGS.md). That patch reports bitwise per-operation checks at fixed KV lengths but contains no test code. The `test-backend-ops` cases here, which vary the padded length and the stream count, are this study's.
+
 ## Why the PR's own test misses the gap
 
 `test_flash_attn_ext_batch_inv` gives the batch call and the single-token calls the same K/V tensors, so `kv` never differs between them. Only the number of query tokens changes.

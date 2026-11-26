@@ -1,4 +1,4 @@
-# v1.5.0: a flash-attention fix for the remaining batch-shape gap in PR #32081 (2026-11-25)
+# v1.5.0: the flash-attention fix for the remaining batch-shape gap, applied to PR #32081 (2026-11-25; prior art added in v1.5.3)
 
 **Background.** v1.4.0 found that [PR #32081](https://github.com/ggml-org/llama.cpp/pull/32081)'s batch-invariant mode leaves one source of batch-shape dependence on the GTX 1650. The flash-attention KV split follows the padded KV length. Pinning that length showed the mechanism, but it is not a usable fix.
 
@@ -15,6 +15,25 @@
 - Environment, hashes and timelines: [`run-log.txt`](run-log.txt)
 
 Nothing has been posted upstream.
+
+## Prior art (added in v1.5.3)
+
+This fix was derived independently, but it is not new:
+- **Issue #25618.** On 2026-11-03, makoni posted a patch in [issue #25618](https://github.com/ggml-org/llama.cpp/issues/25618) against master `71efc559a`. In the quantized-KV vec path (`Q->ne[1] <= 4`; Ada and newer, plus Ampere and RDNA2), it:
+  - removes the `ntiles_KV` clamp;
+  - caps the `parallel_blocks` search at `max(parallel_blocks, blocks_per_wave)`;
+  - sizes the search per query column (`ntiles_dst / ntiles_x`), with occupancy from the 1-column vec kernel.
+
+  That is the same idea as change 1 below and the per-column half of change 2. Its sizing still includes `Q->ne[3]`, the number of sequences. Its diff leaves `ntiles_dst` unchanged, and at the PR head `ntiles_dst / ntiles_x = ntiles_z_gqa × K->ne[2] × Q->ne[3]`. The patch reports bitwise per-operation checks at fixed KV lengths and includes no test code.
+- **PR #16016.** [PR #16016](https://github.com/ggml-org/llama.cpp/pull/16016) (September 2025, still open) proposed deterministic CUDA attention earlier.
+
+What remains distinct here:
+1. The gap is shown in PR #32081's invariant mode at its pinned head.
+2. The `Q->ne[3]` term is removed too. v1.5.2 shows that this term alone fails 8 of 24 cases, including two-slot decode.
+3. There are model-free `test-backend-ops` cases that vary the padded KV length and the stream count (v1.5.1–v1.5.2).
+4. The cost is measured in invariant mode.
+
+The approach is earlier work's.
 
 ## The change
 

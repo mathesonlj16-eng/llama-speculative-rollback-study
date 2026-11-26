@@ -101,7 +101,16 @@ So, for these fixtures on sm_75, the discrepancy comes from two batch-dependent 
 
 Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 findings](provenance/v1.4/FINDINGS.md) · [Per-sequence results](results/v1.4/logit-cmp-by-sequence.csv) · [Patches](patches/v1.4/)
 
-**v1.5.0: a flash-attention fix for the second source.** A change to the flash-attention launch, gated on the flag, closes the gap without pinning the KV length.
+**Prior art (added in v1.5.3).** The flash-attention change below is not new.
+- On 2026-11-03, makoni posted a patch in [issue #25618](https://github.com/ggml-org/llama.cpp/issues/25618) that already removes the KV-length dependence of the split. It caps the search at one wave and sizes it per query column. The issue itself, opened 2026-07-13, reports greedy speculative output diverging on quantized targets, a symptom close to this study's.
+- [PR #16016](https://github.com/ggml-org/llama.cpp/pull/16016), opened September 2025 and still open, proposed deterministic attention earlier.
+- What this study adds:
+  - shows the gap in PR #32081's invariant mode;
+  - also removes the dependence on the number of sequences (the `Q->ne[3]` term, which the #25618 patch keeps);
+  - adds model-free `test-backend-ops` regression cases;
+  - measures the cost.
+
+**v1.5.0: the same flash-attention change applied to PR #32081.** A change to the flash-attention launch, gated on the flag, closes the gap without pinning the KV length. It is independently derived, but follows the approach of the earlier #25618 patch.
 - **What it changes.** In invariant mode, the KV split is sized for one sequence and capped at one wave of GPU blocks, so it no longer depends on the padded KV length.
 - **Correctness.** Every tested grouping became bit-identical to one-token-per-call output: whole, c4, c8, and two sequences per batch with a different cache size. Default-mode output didn't change.
 - **Cost.** In 20 interleaved timing runs, the patch cost 0.4–0.7 % in prefill, and decode stayed within noise. Invariant mode itself runs decode at about 0.32× of default mode, from the forced matmul path.
