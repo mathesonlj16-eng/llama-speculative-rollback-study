@@ -241,4 +241,14 @@ for d in (256, 1024, 4096):
         assert .997 <= med("fafix-def", d, f) / med("base-def", d, f) <= 1.003       # default mode unaffected
     assert .30 <= med("base-bi", d, "tg_ms") / med("base-def", d, "tg_ms") <= .33     # invariant-mode decode cost
     assert .76 <= med("base-bi", d, "pp_ms") / med("base-def", d, "pp_ms") <= .80
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0 and v1.5.0 controls verified.")
+# v1.5.1: operator-level padded-KV FA test
+pk = csv_rows("v1.5/fa-padkv-test.csv")
+assert len(pk) == 80 and all(r["status"] == "OK" for r in pk if r["build"] == "pr-head+fa-fix" or r["test"] == "pr_fa_batch_inv")
+def crosses(r): p0, nb = int(r["p0"]), int(r["nb"]); return (p0 + nb + 255) // 256 != (p0 + 1 + 255) // 256
+head = [r for r in pk if r["build"] == "pr-head" and r["test"] == "padkv"]
+assert len(head) == 24 and sum(crosses(r) for r in head) == 16
+assert all(r["status"] == "OK" for r in head if not crosses(r))      # controls pass on the PR head
+fails = sorted((r["hs"], r["nh"], r["p0"], r["type_KV"]) for r in head if r["status"] == "FAIL")
+assert fails == sorted([(h, n, p, t) for h, n in (("256", "2"),) for p in ("250", "255", "500") for t in ("f16", "q8_0")] + [("128", "8", "500", "f16")]), fails
+assert all(crosses(r) and 0 < int(r["differ"]) < int(r["total"]) for r in head if r["status"] == "FAIL")
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0 and v1.5.1 controls verified.")

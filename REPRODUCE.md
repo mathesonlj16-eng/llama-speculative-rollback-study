@@ -88,6 +88,8 @@ Run the v1.4.0 `build` and `e1` steps first. Then:
   It takes about 9 min and writes about 12 GB of dumps.
 - `bash scripts/v1.5/run.sh bench` runs 20 interleaved timing runs (about 9 min) and prints medians.
 
+`bash scripts/v1.5/run.sh padkv` (v1.5.1) applies `patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch` to a copy of the PR head's `tests/test-backend-ops.cpp`. It compiles that copy once, links it against both builds, and runs `test-backend-ops batch -o FLASH_ATTN_EXT -b CUDA0`. The run takes about a minute and needs no model. Expected: 33/40 on the PR head (exit 1) and 40/40 with the patch.
+
 Aggregate the `logit-cmp` CSVs with `scripts/v1.4/aggregate.py`, using phase `fa`. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
 
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.

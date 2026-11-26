@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.1 (2026-11-25)
+
+Adds an operator-level reproduction of the flash-attention gap from v1.4.0 and v1.5.0. No model is needed.
+
+- **Found** why the PR's `test_flash_attn_ext_batch_inv` misses the gap: it never changes the K/V length between the batch and single-token calls.
+- **Added** `test_flash_attn_ext_batch_inv_padkv` (`patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch`). It uses llama.cpp's 256-cell padding from each call's position. On the PR head, 7 of its 16 boundary-crossing cases fail, with 42–65 % of elements differing; its 8 controls and the PR's 16 FA cases pass. With the v1.5.0 FA patch, all 40 cases pass.
+- **Added** `provenance/v1.5/padkv-test.md`, `results/v1.5/fa-padkv-test.csv`, a `padkv` step in `scripts/v1.5/run.sh`, and v1.5.1 checks in `scripts/verify-results.py`.
+- **Changed** README (a v1.5.1 paragraph) and REPRODUCE.
+
 ## v1.5.0 (2026-11-25)
 
 Adds a fix for the flash-attention gap that v1.4.0 found in PR #32081's batch-invariant mode, with its correctness and cost.

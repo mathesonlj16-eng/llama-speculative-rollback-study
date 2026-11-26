@@ -108,6 +108,11 @@ Not tested: server-level speculative runs, other GPUs and other models. [v1.4.0 
 
 [v1.5.0 findings](provenance/v1.5/FINDINGS.md) · [Patch](patches/v1.5/fa-kv-split-invariant-vs-pr-head.patch) · [Timing](results/v1.5/bench-times.csv)
 
+**v1.5.1: an operator-level reproduction.** The PR's own flash-attention batch test passes, because it gives the batch and the single-token calls the same KV length.
+- A variant pads the KV length as llama.cpp does: from each call's own position, to a multiple of 256.
+- On the PR head, 7 of its 16 boundary-crossing cases fail. With the v1.5.0 patch, all 40 cases pass.
+- It needs no model and runs in seconds. [Test write-up](provenance/v1.5/padkv-test.md) · [Test patch](patches/v1.5/test-backend-ops-fa-padkv-vs-pr-head.patch)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.
