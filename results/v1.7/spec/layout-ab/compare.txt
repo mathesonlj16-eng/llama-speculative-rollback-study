@@ -1,0 +1,25 @@
+== r1-bi-hybrid.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+== r1-bi-f4.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+== r1-bi-compact.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+== results/v1.6/spec/r1-bi-rs.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=2: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=4: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=5: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+plain r1-bi-hybrid.tok vs r1-bi-f4.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-hybrid.tok vs r1-bi-compact.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-hybrid.tok vs results/v1.6/spec/r1-bi-rs.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-f4.tok vs r1-bi-compact.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-f4.tok vs results/v1.6/spec/r1-bi-rs.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-compact.tok vs results/v1.6/spec/r1-bi-rs.tok: token diff 0/19, hash diff 0/19

@@ -359,4 +359,57 @@ tps = lambda a, k: median(v[0] * 1000 / v[1] for (aa, kk, _), v in sp.items() if
 assert round(tps("bi-rs", 0), 1) == 66.5 and round(tps("def-rs", 0), 1) == 61.1 and round(tps("bi-ckpt", 0), 1) == 68.8
 assert all(tps("bi-rs", k) < tps("bi-rs", 0) and tps("def-rs", k) < tps("bi-rs", 0) for k in (1, 2, 3, 4, 5, 7))   # plain invariant fastest
 assert round(tps("d1000-bi-rs", 7) / tps("d1000-bi-rs", 0), 2) == 1.11
-print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0, v1.5.1, v1.5.2 and v1.6.0 controls verified.")
+
+# v1.7.0: Q4_K/Q6_K N = 2..8 kernels, sanitizer, layout A/B
+for name in ("v1.7/kq-nb-sweep-intree-float4.csv", "v1.7/kq-nb-sweep-intree-hybrid.csv"):   # every column of N = 1..8 vs N = 16 forced MMQ
+    sw = [r for r in sweep_rows(name) if r["label"] == "sweep"]
+    assert len(sw) == 450 and sum(int(r["bi_bad"]) for r in sw) == 0 and sum(int(r["bi_cmp"]) for r in sw) == 46812672, name
+    assert sum(int(r["ctrl_default_bad"]) > 0 for r in sw) == 315 and sum(int(r["ref_negzero"]) for r in sw) == 12980
+    assert all(int(r["ctrl_default_bad"]) > 0 for r in sw if r["family"] in ("normal", "zeros", "cancel", "single"))
+gate = sweep_rows("v1.7/layout-ab-gate.csv")
+assert {r["label"] for r in gate} == {"f4", "compact", "hybrid"} and sum(int(r["bi_bad"]) for r in gate) == 0 and sum(int(r["bi_cmp"]) for r in gate) == 2654208
+for name in ("v1.7/model-checks-float4.txt", "v1.7/model-checks-hybrid.txt"):
+    t = (root / name).read_text()
+    assert "DIFFERENT" not in t and t.count("112/112 tests passed") == 2 and t.count("differ=0") == 2 and t.count(": identical") == 10, name
+    assert "bad 0 of 46812672" in t and t.count("not bit-identical to own ref: 0 of 34") == 2
+def pq(name):
+    return [r for r in csv_rows(name) if int(r["m"]) >= 512]
+rat = lambda r, a: float(r[a + "_med"]) / float(r["default_med"])
+v1 = pq("v1.7/perf-nbkq-v1-float4.csv"); v2 = pq("v1.7/perf-nbkq-v2-compact.csv"); v3 = pq("v1.7/perf-nbkq-v3-hybrid.csv")
+sel = lambda p, t, lo, hi: [r for r in p if r["type"] == t and lo <= int(r["n"]) <= hi]
+assert max(rat(r, "bi-new") for r in sel(v1, "q4_K", 8, 8)) > 1.6                               # float4: the N = 8 slowdown
+assert all(.72 <= rat(r, "bi-new") <= .978 for r in sel(v3, "q4_K", 8, 8)) and len(sel(v3, "q4_K", 8, 8)) == 12
+assert all(.729 <= rat(r, "bi-new") <= 1.158 for r in sel(v3, "q4_K", 2, 2)) and len(sel(v3, "q4_K", 2, 2)) == 12
+assert all(rat(r, "bi-new") < rat(r, "bi-mmq") for r in v3)                                     # hybrid always beats forced MMQ
+assert all(.638 <= rat(r, "bi-new") <= 1.179 for r in sel(v2, "q4_K", 3, 6))
+assert all(.657 <= rat(r, "bi-new") <= 1.32 for r in sel(v1, "q6_K", 2, 8))
+ptx = (root / "v1.7/ptxas-nb-kq.txt").read_text()
+assert "q4_K NC=8 CP=0\tUsed 138 registers, 38400 bytes smem" in ptx and "q4_K NC=8 CP=1\tUsed 150 registers, 19392 bytes smem" in ptx
+assert ptx.count("0 bytes spill stores, 0 bytes spill loads") == 21
+def spec7(tag):
+    s = {}
+    for f in (root / f"v1.7/spec/{tag}").glob("r*-bi-*.csv"):
+        for r in csv_rows(f"v1.7/spec/{tag}/{f.name}"):
+            x = s.setdefault((r["label"].split("-", 1)[1], int(r["k"])), {}).setdefault(r["label"], [0, 0])
+            x[0] += int(r["n_gen"]); x[1] += float(r["ms"])
+            assert r["redecode_bad"] == "0"
+    assert all(len(v) == 3 for v in s.values()), tag
+    return {k: median(n * 1000 / ms for n, ms in v.values()) for k, v in s.items()}
+s1, s3, sab = spec7("v1-float4"), spec7("v3-hybrid"), spec7("layout-ab")
+assert round(s1[("bi-new", 1)], 1) == 70.0 and round(s1[("bi-off", 1)], 1) == 52.8 and round(s3[("bi-new", 1)], 1) == 68.9
+assert all(1.02 <= s[(a, 1)] / s[(a, 0)] <= 1.06 for s, a in ((s1, "bi-new"), (s3, "bi-new"), (sab, "bi-hybrid"), (sab, "bi-f4"), (sab, "bi-compact")))
+assert max(sab[(a, 3)] for a in ("bi-hybrid", "bi-f4", "bi-compact")) / min(sab[(a, 3)] for a in ("bi-hybrid", "bi-f4", "bi-compact")) < 1.02   # layout effect within noise
+ref = tok("r1-bi-rs")   # v1.6.0 plain invariant decoding
+for tag, names in (("v1-float4", ("r1-bi-new", "r1-bi-off")), ("v3-hybrid", ("r1-bi-new", "r1-bi-off")), ("layout-ab", ("r1-bi-hybrid", "r1-bi-f4", "r1-bi-compact"))):
+    for n in names:
+        d = {}
+        for line in (root / f"v1.7/spec/{tag}/{n}.tok").read_text().splitlines():
+            a = line.split(); d[(int(a[0]), int(a[1]))] = [x.split(":") for x in a[2:]]
+        assert all(d[(k, s)] == ref[(0, s)] for (k, s) in d), (tag, n)   # every k: tokens + full-logit hashes == plain
+san = (root / "v1.7/sanitizer/summary.txt").read_text().splitlines()
+assert len(san) == 20 and all("0 errors" in l or "0 hazards" in l for l in san if "initcheck" not in l)
+for n in ("q4K-1024x100", "q6K-3584x100", "q8-2048x100"):   # all initcheck reports in upstream's forced-MMQ kernel, none in the new kernels
+    dg = (root / f"v1.7/sanitizer/{n}-initcheck-full.digest.txt").read_text()
+    assert "224 ========= Uninitialized __global__ memory read" in dg and "bi_n" not in dg and "mul_mat_q<" in dg, n
+assert "224 ========= Uninitialized __global__ memory read" in (root / "v1.7/sanitizer/prhead-q4K-initcheck.digest.txt").read_text()
+print("Archived headline aggregates, CPU oracle comparisons, measured sweep points, rerun, v1.1.0, v1.2.0, v1.3.0, v1.3.1, v1.3.2, v1.4.0, v1.5.0, v1.5.1, v1.5.2, v1.6.0 and v1.7.0 controls verified.")

@@ -106,6 +106,21 @@ The kernels need an sm_75 (Turing) GPU; on other architectures the gate leaves t
 
 The archived runs timed Q8_0 N = 1, the K-quants and N = 2..8 in separate `perf` invocations; the runner combines them in one. The runner is a parameterized copy of the drivers that ran; it has not been rerun end to end.
 
+### v1.7.0 K-quant kernels for 2–8 tokens, sanitizer and layout A/B
+
+**Setup.** Build PR head plus `patches/v1.7/invariant-gemv-nbkq-fafix-vs-pr-head.patch`, which supersedes the v1.6.0 patch, as in the v1.6.0 `build` step. Same sm_75 requirement; with ccache only the changed CUDA file recompiles, in about 1 min. `scripts/v1.7/` holds the **archived drivers as they ran**, with only their paths parameterized: `SM75_ROOT`, with `worktrees/`, `build/`, `models/` and the v1.4.0/v1.5.0 outputs under `qwen-bi/`. Unlike v1.6.0 there is no combined runner, and the drivers have not been rerun from this repository.
+
+**Drivers:**
+- **`run-nbkq.sh`** runs the full sequence. It stops before any timing if a single bit differs.
+  - Gates (about 10 min): build, the operator sweep (`bi_nb_kq_lib.cu`), `test-backend-ops batch`, the draft and target fixtures, and the SASS op counts.
+  - Then matched per-op timing (5 rounds, about 47 min for 70 cases × 3 arms) and invariant-mode speculative decoding (3 rounds, about 17 min).
+  - Expected: `bad 0 of 46812672` in the sweep, 112/112 with the kernels on and off, and every fixture line `identical` or `differ=0`.
+- **`run-nbkq-hybrid.sh`** is the same, minus the sanitizer step, with Q4_K timing at N = 2 and 8 only (3 rounds).
+- **`run-layout-ab.sh`** checks bits per layout, then interleaves the three Q4_K staging layouts (`GGML_CUDA_BI_NB_Q4K_LAYOUT`) in speculative decoding (about 25 min).
+- **`run-sanitizer.sh`** runs memcheck, racecheck, initcheck and synccheck on small shapes (about 1 min). Under WSL2 it needs the WDDM debugger interface: registry value `HKLM\SOFTWARE\NVIDIA Corporation\GPUDebugger\EnableInterface` = 1, set by an administrator, then `wsl --shutdown`. Without it, every tool reports "Failed to initialize WDDM debugger interface".
+
+**Summaries:** `perf_summary.py` turns `test-backend-ops perf` logs into ratio tables. Speculative runs reuse `scripts/v1.6/spec-bi.cpp`, `compare.py` and `spec_summary.py`.
+
 Only one runner per host should use the archived fixed localhost ports at a time. The runner copies the harness to its output directory. Each arm launches a fresh server and records request timing, token IDs and server logs. Look for all requests completing and compare actual token arrays in oracle variants. The mutation runs deliberately include HTTP errors and process aborts. Follow-up output includes the historical odd-length cache attempt and the corrected two-slot run.
 
 The stock build is upstream `787a5612fceef602503e5f0ee6133cdc9b8a85c1`. Apply each of the four patches independently to the pin. The target patch is cumulative with paired checkpoints, and keep-draft is cumulative with both. The exact-activation patch is a separate CPU experiment. The archived prototype used CPU-compiled server/common libraries over a shared CUDA runtime. The build script makes clean variant builds. The original CUDA 13.1/GCC 15 combination required a local, two-declaration CUDA-header exception-specification compatibility adjustment for rsqrt and rsqrtf. Use a supported toolchain pairing or supply an equivalent local toolchain workaround according to your CUDA installation. The upstream llama.cpp changes and NVIDIA headers have separate licensing.

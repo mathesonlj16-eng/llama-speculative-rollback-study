@@ -1,0 +1,23 @@
+# ptxas -v resource usage of the N>=2 K-quant kernels (mmq-bi-nb-kq.cuh), sm_75, build flags of build/mmq-n1-fa
+# kernel, NC, layout (CP=1 compact, CP=0 float4), registers, shared memory, spills
+q4_K NC=2 CP=0	Used 87 registers, 13056 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=2 CP=1	Used 93 registers, 9888 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=3 CP=0	Used 101 registers, 17280 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=3 CP=1	Used 105 registers, 11472 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=4 CP=0	Used 108 registers, 21504 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=4 CP=1	Used 110 registers, 13056 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=5 CP=0	Used 115 registers, 25728 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=5 CP=1	Used 123 registers, 14640 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=6 CP=0	Used 130 registers, 29952 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=6 CP=1	Used 127 registers, 16224 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=7 CP=0	Used 142 registers, 34176 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=7 CP=1	Used 140 registers, 17808 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=8 CP=0	Used 138 registers, 38400 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q4_K NC=8 CP=1	Used 150 registers, 19392 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=2	Used 147 registers, 9584 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=3	Used 140 registers, 10904 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=4	Used 140 registers, 12224 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=5	Used 163 registers, 13544 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=6	Used 160 registers, 14864 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=7	Used 156 registers, 16184 bytes smem	0 bytes spill stores, 0 bytes spill loads
+q6_K NC=8	Used 158 registers, 17504 bytes smem	0 bytes spill stores, 0 bytes spill loads

@@ -1,0 +1,1439 @@
+diff --git a/ggml/src/ggml-cuda/fattn-common.cuh b/ggml/src/ggml-cuda/fattn-common.cuh
+index e807a6e0d5..bf5465db9a 100644
+--- a/ggml/src/ggml-cuda/fattn-common.cuh
++++ b/ggml/src/ggml-cuda/fattn-common.cuh
+@@ -1251,19 +1251,24 @@ void launch_fattn(
+             dst_tmp_meta.alloc((size_t(blocks_num.x) * ncols * (2 + DV/2)));
+         }
+     } else {
+-        // parallel_blocks must not be larger than what the tensor size allows:
+-        parallel_blocks = std::min(parallel_blocks, ntiles_KV);
+-
+         // If ntiles_total % blocks_per_wave != 0 then some efficiency is lost due to tail effects.
+         // Test whether parallel_blocks can be set to a higher value for better efficiency.
+         const int blocks_per_wave = nsm * max_blocks_per_sm;
+ 
+-        // With batch invariance the KV split is sized as for a single query tile,
+-        // so it does not depend on the batch size.
+-        const int ntiles_dst_pb = ctx.batch_invariant ? ntiles_dst / ntiles_x : ntiles_dst;
++        // With batch invariance the KV split must not depend on the batch: not on the number of query
++        // tiles, not on the number of sequences, and not on the padded KV length, which grows with the
++        // positions a batch writes. Size it for one query tile of one sequence and cap it by one wave
++        // instead of by ntiles_KV. KV tiles are strided over the blocks, and masked or absent tiles add
++        // exact zeros, so the summation order for the unmasked positions is then fixed.
++        const int parallel_blocks_max = ctx.batch_invariant ? blocks_per_wave : ntiles_KV;
++
++        // parallel_blocks must not be larger than what the tensor size allows:
++        parallel_blocks = std::min(parallel_blocks, parallel_blocks_max);
++
++        const int ntiles_dst_pb = ctx.batch_invariant ? ntiles_z_gqa*K->ne[2] : ntiles_dst;
+         int nwaves_best = 0;
+         int efficiency_percent_best = 0;
+-        for (int parallel_blocks_test = parallel_blocks; parallel_blocks_test <= ntiles_KV; ++parallel_blocks_test) {
++        for (int parallel_blocks_test = parallel_blocks; parallel_blocks_test <= parallel_blocks_max; ++parallel_blocks_test) {
+             const int nblocks_total = ntiles_dst_pb * parallel_blocks_test;
+             const int nwaves = (nblocks_total + blocks_per_wave - 1) / blocks_per_wave;
+             const int efficiency_percent = 100 * nblocks_total / (nwaves*blocks_per_wave);
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index f9bdee943b..ba0be07bdc 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -28,6 +28,7 @@
+ #include "ggml-cuda/diag.cuh"
+ #include "ggml-cuda/fattn.cuh"
+ #include "ggml-cuda/fp8.cuh"
++#include "ggml-cuda/mmq-bi-n1.cuh"
+ #include "ggml-cuda/fwht.cuh"
+ #include "ggml-cuda/getrows.cuh"
+ #include "ggml-cuda/im2col.cuh"
+@@ -2553,6 +2554,12 @@ static void ggml_cuda_mul_mat(ggml_backend_cuda_context & ctx, const ggml_tensor
+     const int warp_size = ggml_cuda_info().devices[ctx.device].warp_size;
+ 
+     if (ctx.batch_invariant && ggml_cuda_should_use_mmq(src0->type, cc, /*ne11 =*/ 1, /*n_experts =*/ 0)) {
++        // 1 column (Q8_0, Q4_K, Q6_K) or 2..8 columns (Q8_0): GEMV kernels that reproduce forced MMQ's
++        // per-output summation order bit for bit (sm_75 only).
++        if (ggml_cuda_bi_fast_n1_supported(src0, src1, dst, cc)) {
++            ggml_cuda_mul_mat_bi_fast_n1(ctx, src0, src1, dst);
++            return;
++        }
+         // Force mmq with a pinned tile width and one tile per block (see
+         // ggml_cuda_mul_mat_q and launch_mul_mat_q).
+         ggml_cuda_mul_mat_q(ctx, src0, src1, nullptr, dst, nullptr);
+diff --git a/ggml/src/ggml-cuda/mmq-bi-n1-kq-v2.cuh b/ggml/src/ggml-cuda/mmq-bi-n1-kq-v2.cuh
+new file mode 100644
+index 0000000000..6bac7cc9d4
+--- /dev/null
++++ b/ggml/src/ggml-cuda/mmq-bi-n1-kq-v2.cuh
+@@ -0,0 +1,451 @@
++#pragma once
++
++// v2 (performance) of the K-quant fast N=1 kernels in mmq-bi-n1-kq.cuh: the same float program per row
++// (see that header), restructured:
++//   - R rows per warp: each lane loads its activation group once for R rows, and R independent fold chains
++//     interleave (ILP for the serial FFMA chain);
++//   - fold operands packed per lane (Q4_K: one float4 = (dmA.x*dsB.x, Cf, dmA.y, dsB.y)) -> one LDS per term;
++//   - PF: prefetch the next chunk's weights into registers while the current chunk is computed.
++// Per-row operation order is unchanged: rows never mix, and the fold runs i (block) outer, r (row) inner.
++
++#include "mmq-bi-n1-kq.cuh"
++
++template <int NW, int R, bool PF>
++__global__ void __launch_bounds__(NW*32) bi_n1_q4_K_v2(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    __shared__ int4   sbuf[NW][R][36];
++    __shared__ float4 sf[NW][R][32];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*R;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, s = lane & 7;
++    float acc[R];
++    int4 pf[R][2];
++#pragma unroll
++    for (int r = 0; r < R; ++r) {
++        acc[r] = 0.0f;
++        if (PF) {
++            const int nsbc = min(4, nsb);
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 2; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 9*nsbc) pf[r][i] = __ldg(wr + idx);
++            }
++        }
++    }
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++#pragma unroll
++        for (int r = 0; r < R; ++r) {
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 2; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 9*nsbc) {
++                    sbuf[wy][r][idx] = PF ? pf[r][i] : __ldg(wr + 9*sb0 + idx);
++                }
++            }
++            if (PF && sb0 + 4 < nsb) {
++                const int nsbn = min(4, nsb - sb0 - 4);
++#pragma unroll
++                for (int i = 0; i < 2; ++i) {
++                    const int idx = lane + 32*i;
++                    if (idx < 9*nsbn) pf[r][i] = __ldg(wr + 9*(sb0 + 4) + idx);
++                }
++            }
++        }
++        const int g = 8*(sb0 + sbl) + s;
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        half2 dsh = __floats2half2_rn(0.0f, 0.0f);
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dsh = __ldg((const half2 *) by + (g & 3));
++            ya  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        const float2 dsB = __half22float2(dsh);
++        __syncwarp();
++        if (sbl < nsbc) {
++#pragma unroll
++            for (int r = 0; r < R; ++r) {
++                const int * w = (const int *) sbuf[wy][r] + 36*sbl;
++                const half2 dm = *(const half2 *) w;
++                const int sc32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 0);
++                const int  m32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 2);
++                const uint8_t sc8 = (uint8_t) (sc32 >> (8*(s % 4)));
++                const uint8_t  m8 = (uint8_t) ( m32 >> (8*(s % 4)));
++                const half2 dmn = dm * make_half2(1.0f, -1.0f);
++                const float2 dmA = __half22float2(dmn * make_half2(sc8, m8));
++                const int4 * q4 = (const int4 *) (w + 4 + 8*(s/2));
++                const int4 qa = q4[0], qb = q4[1];
++                const int sh = 4*(s & 1);
++                int c = 0;
++                c = __dp4a((qa.x >> sh) & 0x0F0F0F0F, ya.x, c);
++                c = __dp4a((qa.y >> sh) & 0x0F0F0F0F, ya.y, c);
++                c = __dp4a((qa.z >> sh) & 0x0F0F0F0F, ya.z, c);
++                c = __dp4a((qa.w >> sh) & 0x0F0F0F0F, ya.w, c);
++                c = __dp4a((qb.x >> sh) & 0x0F0F0F0F, yb.x, c);
++                c = __dp4a((qb.y >> sh) & 0x0F0F0F0F, yb.y, c);
++                c = __dp4a((qb.z >> sh) & 0x0F0F0F0F, yb.z, c);
++                c = __dp4a((qb.w >> sh) & 0x0F0F0F0F, yb.w, c);
++                sf[wy][r][lane] = make_float4(__fmul_rn(dmA.x, dsB.x), (float) c, dmA.y, dsB.y);
++            }
++        }
++        __syncwarp();
++        const int ng = 8*nsbc;
++        for (int i = 0; i < ng; ++i) {
++#pragma unroll
++            for (int r = 0; r < R; ++r) {
++                const float4 v = sf[wy][r][i];
++                acc[r] = __fmaf_rn(v.x, v.y, acc[r]);   // MMQ: sum += (dmA.x*dsB.x)*C
++                acc[r] = __fmaf_rn(v.z, v.w, acc[r]);   // MMQ: sum += dmA.y*dsB.y
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < R && row0 + lane < nrows) {
++        float out = acc[0];
++#pragma unroll
++        for (int r = 1; r < R; ++r) if (lane == r) out = acc[r];
++        dst[row0 + lane] = out;
++    }
++}
++
++template <int NW, int R, bool PF>
++__global__ void __launch_bounds__(NW*32) bi_n1_q6_K_v2(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    __shared__ int   sbuf[NW][R][212];
++    __shared__ float scf[NW][R][32];
++    __shared__ float sdb[NW][32];
++    __shared__ float sda[NW][R][4];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*R;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, q = lane & 7, n = q >> 2, j = q & 3;
++    float acc[R];
++    int pf[R][7];
++#pragma unroll
++    for (int r = 0; r < R; ++r) {
++        acc[r] = 0.0f;
++        if (PF) {
++            const int nw0 = (210*min(4, nsb))/4;
++            const int * wr = (const int *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 7; ++i) { const int idx = lane + 32*i; if (idx < nw0) pf[r][i] = __ldg(wr + idx); }
++        }
++    }
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++        const int nwords = (210*nsbc)/4;
++#pragma unroll
++        for (int r = 0; r < R; ++r) {
++            const int * wr = (const int *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 7; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < nwords) sbuf[wy][r][idx] = PF ? pf[r][i] : __ldg(wr + (210*sb0)/4 + idx);
++            }
++            if (PF && sb0 + 4 < nsb) {
++                const int nwn = (210*min(4, nsb - sb0 - 4))/4;
++#pragma unroll
++                for (int i = 0; i < 7; ++i) { const int idx = lane + 32*i; if (idx < nwn) pf[r][i] = __ldg(wr + (210*(sb0 + 4))/4 + idx); }
++            }
++        }
++        const int g = 8*(sb0 + sbl) + q;
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        float dB = 0.0f;
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dB = __ldg((const float *) by + (g & 3));
++            ya = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++            sdb[wy][lane] = dB;
++            const int base = 210*sbl;
++            const int oql = base + 64*n + 32*(j & 1);
++            const int oqh = base + 128 + 32*n;
++            const int shl = 4*(j >> 1), shh = 2*j;
++            const int yv[8] = {ya.x, ya.y, ya.z, ya.w, yb.x, yb.y, yb.z, yb.w};
++#pragma unroll
++            for (int r = 0; r < R; ++r) {
++                const int * s32 = sbuf[wy][r];
++                int c0 = 0, c1 = 0;
++#pragma unroll
++                for (int i = 0; i < 8; ++i) {
++                    const int ql = (bi_n1_ld32_2(s32, oql + 4*i) >> shl) & 0x0F0F0F0F;
++                    const int qh = ((bi_n1_ld32_2(s32, oqh + 4*i) >> shh) & 0x03030303) << 4;
++                    const int v  = __vsub4(ql | qh, 0x20202020);
++                    if (i < 4) c0 = __dp4a(v, yv[i], c0); else c1 = __dp4a(v, yv[i], c1);
++                }
++                const int8_t * sc = (const int8_t *) s32 + base + 192;
++                scf[wy][r][lane] = (float) (c0*sc[2*q] + c1*sc[2*q + 1]);
++                if (q == 0) {
++                    sda[wy][r][sbl] = __half2float(__ushort_as_half(*((const unsigned short *) ((const char *) s32 + base + 208))));
++                }
++            }
++        }
++        __syncwarp();
++        for (int h = 0; h < 2*nsbc; ++h) {
++            float tmp[R];
++            const float db0 = sdb[wy][4*h];
++#pragma unroll
++            for (int r = 0; r < R; ++r) tmp[r] = __fmaf_rn(scf[wy][r][4*h], db0, 0.0f);   // MMQ: tmp = Cf*dB + RZ
++#pragma unroll
++            for (int k = 1; k < 4; ++k) {
++                const float dbk = sdb[wy][4*h + k];
++#pragma unroll
++                for (int r = 0; r < R; ++r) tmp[r] = __fmaf_rn(scf[wy][r][4*h + k], dbk, tmp[r]);
++            }
++#pragma unroll
++            for (int r = 0; r < R; ++r) acc[r] = __fmaf_rn(tmp[r], sda[wy][r][h >> 1], acc[r]);   // MMQ: sum += tmp*dA
++        }
++        __syncwarp();
++    }
++    if (lane < R && row0 + lane < nrows) {
++        float out = acc[0];
++#pragma unroll
++        for (int r = 1; r < R; ++r) if (lane == r) out = acc[r];
++        dst[row0 + lane] = out;
++    }
++}
++
++// ================================================================ v3: lane-parallel fold across rows.
++// A warp handles RW rows. Compute phase: for each row r, lane = 32-value group (as before). Fold phase: lane r
++// folds row r's terms serially in ascending group order (the identical per-row float program), so the serial
++// chain costs 1/RW of a warp instruction per term instead of one. Shared rows padded to 33 entries (no bank conflicts).
++
++template <int NW, int RW>
++__global__ void __launch_bounds__(NW*32) bi_n1_q4_K_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    static_assert(RW >= 1 && RW <= 32, "RW");
++    __shared__ int4   sbuf[NW][RW][36];
++    __shared__ float4 sf[NW][RW][33];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, s = lane & 7;
++    float acc = 0.0f;   // lane r < RW: row row0 + r
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 2; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 9*nsbc) sbuf[wy][r][idx] = __ldg(wr + 9*sb0 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + s;
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        half2 dsh = __floats2half2_rn(0.0f, 0.0f);
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dsh = __ldg((const half2 *) by + (g & 3));
++            ya  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        const float2 dsB = __half22float2(dsh);
++        __syncwarp();
++        if (sbl < nsbc) {
++#pragma unroll 4
++            for (int r = 0; r < RW; ++r) {
++                const int * w = (const int *) sbuf[wy][r] + 36*sbl;
++                const half2 dm = *(const half2 *) w;
++                const int sc32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 0);
++                const int  m32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 2);
++                const uint8_t sc8 = (uint8_t) (sc32 >> (8*(s % 4)));
++                const uint8_t  m8 = (uint8_t) ( m32 >> (8*(s % 4)));
++                const half2 dmn = dm * make_half2(1.0f, -1.0f);
++                const float2 dmA = __half22float2(dmn * make_half2(sc8, m8));
++                const int4 * q4 = (const int4 *) (w + 4 + 8*(s/2));
++                const int4 qa = q4[0], qb = q4[1];
++                const int sh = 4*(s & 1);
++                int c = 0;
++                c = __dp4a((qa.x >> sh) & 0x0F0F0F0F, ya.x, c);
++                c = __dp4a((qa.y >> sh) & 0x0F0F0F0F, ya.y, c);
++                c = __dp4a((qa.z >> sh) & 0x0F0F0F0F, ya.z, c);
++                c = __dp4a((qa.w >> sh) & 0x0F0F0F0F, ya.w, c);
++                c = __dp4a((qb.x >> sh) & 0x0F0F0F0F, yb.x, c);
++                c = __dp4a((qb.y >> sh) & 0x0F0F0F0F, yb.y, c);
++                c = __dp4a((qb.z >> sh) & 0x0F0F0F0F, yb.z, c);
++                c = __dp4a((qb.w >> sh) & 0x0F0F0F0F, yb.w, c);
++                sf[wy][r][lane] = make_float4(__fmul_rn(dmA.x, dsB.x), (float) c, dmA.y, dsB.y);
++            }
++        }
++        __syncwarp();
++        if (lane < RW) {
++            const int ng = 8*nsbc;
++            for (int i = 0; i < ng; ++i) {
++                const float4 v = sf[wy][lane][i];
++                acc = __fmaf_rn(v.x, v.y, acc);   // MMQ: sum += (dmA.x*dsB.x)*C
++                acc = __fmaf_rn(v.z, v.w, acc);   // MMQ: sum += dmA.y*dsB.y
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW && row0 + lane < nrows) {
++        dst[row0 + lane] = acc;
++    }
++}
++
++template <int NW, int RW>
++__global__ void __launch_bounds__(NW*32) bi_n1_q6_K_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    static_assert(RW >= 1 && RW <= 32, "RW");
++    __shared__ int   sbuf[NW][RW][212];
++    __shared__ float scf[NW][RW][33];
++    __shared__ float sdb[NW][32];
++    __shared__ float sda[NW][RW][5];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, q = lane & 7, n = q >> 2, j = q & 3;
++    float acc = 0.0f;
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++        const int nwords = (210*nsbc)/4;
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int * wr = (const int *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 7; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < nwords) sbuf[wy][r][idx] = __ldg(wr + (210*sb0)/4 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + q;
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        float dB = 0.0f;
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dB = __ldg((const float *) by + (g & 3));
++            ya = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++            sdb[wy][lane] = dB;
++            const int base = 210*sbl;
++            const int oql = base + 64*n + 32*(j & 1);
++            const int oqh = base + 128 + 32*n;
++            const int shl = 4*(j >> 1), shh = 2*j;
++            const int yv[8] = {ya.x, ya.y, ya.z, ya.w, yb.x, yb.y, yb.z, yb.w};
++#pragma unroll 2
++            for (int r = 0; r < RW; ++r) {
++                const int * s32 = sbuf[wy][r];
++                int c0 = 0, c1 = 0;
++#pragma unroll
++                for (int i = 0; i < 8; ++i) {
++                    const int ql = (bi_n1_ld32_2(s32, oql + 4*i) >> shl) & 0x0F0F0F0F;
++                    const int qh = ((bi_n1_ld32_2(s32, oqh + 4*i) >> shh) & 0x03030303) << 4;
++                    const int v  = __vsub4(ql | qh, 0x20202020);
++                    if (i < 4) c0 = __dp4a(v, yv[i], c0); else c1 = __dp4a(v, yv[i], c1);
++                }
++                const int8_t * sc = (const int8_t *) s32 + base + 192;
++                scf[wy][r][lane] = (float) (c0*sc[2*q] + c1*sc[2*q + 1]);
++                if (q == 0) {
++                    sda[wy][r][sbl] = __half2float(__ushort_as_half(*((const unsigned short *) ((const char *) s32 + base + 208))));
++                }
++            }
++        }
++        __syncwarp();
++        if (lane < RW) {
++            for (int h = 0; h < 2*nsbc; ++h) {
++                float tmp = __fmaf_rn(scf[wy][lane][4*h], sdb[wy][4*h], 0.0f);       // MMQ: tmp = Cf*dB + RZ
++#pragma unroll
++                for (int k = 1; k < 4; ++k) {
++                    tmp = __fmaf_rn(scf[wy][lane][4*h + k], sdb[wy][4*h + k], tmp);  // MMQ: tmp += Cf*dB
++                }
++                acc = __fmaf_rn(tmp, sda[wy][lane][h >> 1], acc);                     // MMQ: sum += tmp*dA
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW && row0 + lane < nrows) {
++        dst[row0 + lane] = acc;
++    }
++}
++
++// ================================================================ Q8_0 v3: lane-parallel fold across RW rows.
++// Same per-row float program as mul_mat_bi_fast_n1_q8_0 (mmq-bi-n1.cu) / MMQ Turing:
++//   t_b = float(C_b)*dA_b (FMUL.FTZ);  sum = fma(t_b, dB_b, sum) (FFMA.FTZ), b ascending.
++// block_q8_0 = half d | int8 qs[32] (34 B); rows need ne00 % 1024 == 0 (32-block chunks, 1088 B, 16-B aligned).
++template <int NW, int RW>
++__global__ void __launch_bounds__(NW*32) bi_n1_q8_0_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nb) {
++    static_assert(RW >= 1 && RW <= 32, "RW");
++    __shared__ int4  sbuf[NW][RW][69];
++    __shared__ float st[NW][RW][33];
++    __shared__ float sd[NW][32];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int w0 = 8*lane + lane/2, sh = (lane & 1) * 16;
++    float acc = 0.0f;
++    const int nchunks = nb / 32;
++    for (int ch = 0; ch < nchunks; ++ch) {
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 3; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 68) sbuf[wy][r][idx] = __ldg(wr + 68*ch + idx);
++            }
++        }
++        const int b = 32*ch + lane;
++        const char * by = y + (int64_t) (b >> 2)*144;
++        const int4  ya = __ldg((const int4 *) (by + 16 + 32*(b & 3)) + 0);
++        const int4  yb = __ldg((const int4 *) (by + 16 + 32*(b & 3)) + 1);
++        sd[wy][lane] = __ldg((const float *) by + (b & 3));
++        __syncwarp();
++#pragma unroll 4
++        for (int r = 0; r < RW; ++r) {
++            const int * s32 = (const int *) sbuf[wy][r];
++            int w[9];
++#pragma unroll
++            for (int i = 0; i < 9; ++i) w[i] = s32[w0 + i];
++            const uint16_t dbits = uint16_t(uint32_t(w[0]) >> sh);
++            int c = 0;
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[0], (unsigned) w[1], 16 + sh), ya.x, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[1], (unsigned) w[2], 16 + sh), ya.y, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[2], (unsigned) w[3], 16 + sh), ya.z, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[3], (unsigned) w[4], 16 + sh), ya.w, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[4], (unsigned) w[5], 16 + sh), yb.x, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[5], (unsigned) w[6], 16 + sh), yb.y, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[6], (unsigned) w[7], 16 + sh), yb.z, c);
++            c = __dp4a((int) __funnelshift_rc((unsigned) w[7], (unsigned) w[8], 16 + sh), yb.w, c);
++            st[wy][r][lane] = __fmul_rn((float) c, __half2float(__ushort_as_half(dbits)));   // MMQ: FMUL.FTZ C*dA
++        }
++        __syncwarp();
++        if (lane < RW) {
++#pragma unroll 8
++            for (int i = 0; i < 32; ++i) {
++                acc = __fmaf_rn(st[wy][lane][i], sd[wy][i], acc);                          // MMQ: FFMA.FTZ sum += t*dB
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW && row0 + lane < nrows) {
++        dst[row0 + lane] = acc;
++    }
++}
+diff --git a/ggml/src/ggml-cuda/mmq-bi-n1-kq.cuh b/ggml/src/ggml-cuda/mmq-bi-n1-kq.cuh
+new file mode 100644
+index 0000000000..bb5a285402
+--- /dev/null
++++ b/ggml/src/ggml-cuda/mmq-bi-n1-kq.cuh
+@@ -0,0 +1,243 @@
++#pragma once
++
++// Batch-invariant fast N=1 GEMVs for Q4_K and Q6_K (research prototype, sm_75 Turing-MMA MMQ order).
++// Self-contained device code (cuda_fp16 only) so a standalone harness can include the exact same kernels.
++// Weights and the src1 buffer are read as raw bytes:
++//   block_q4_K: half2 dm | uint8 scales[12] | uint8 qs[128]                 = 144 B per 256 values
++//   block_q6_K: uint8 ql[128] | uint8 qh[64] | int8 scales[16] | half d     = 210 B per 256 values
++//   block_q8_1_mmq: 16 B header (DS4: half2 (d, s) x4  |  D4: float d x4) | int8 qs[128] = 144 B per 128 values
++//
++// Reproduced MMQ float programs (mmq-vec-dot.cuh @ 3f25ea199, Turing branch; checked against SASS of the PR build):
++//   Q4_K, per 32-value sub-block b ascending (:432-433):  sum = fma(dmA.x*dsB.x, (float)C_b, sum); sum = fma(dmA.y, dsB.y, sum)
++//         with dmA = half2(d, -dmin) * half2(sc_b, m_b) in fp16 (mmq-load-tiles.cuh:815-819)
++//   Q6_K, per 128-value half superblock h ascending (:1125-1160):
++//         tmp = 0; for g in 4 groups of 32: tmp = fma((float)(C_g0*sc_g0 + C_g1*sc_g1), dB_g, tmp);  sum = fma(tmp, d, sum)
++// MODE != 0 selects deliberately wrong float programs (negative controls for the harness only).
++
++#include <cuda_fp16.h>
++#include <cstdint>
++
++#define BI_N1_FULL_MASK 0xffffffffu
++
++static __device__ __forceinline__ int bi_n1_unpack_scales_q45_K(const int * scales, const int ksc) {
++    // copy of unpack_scales_q45_K (mmq-load-tiles.cuh:736-744)
++    return ((scales[(ksc%2) + (ksc!=0)] >> (4 * (ksc & (ksc/2)))) & 0x0F0F0F0F) |
++           ((scales[ksc/2]              >> (2 * (ksc % 2)))       & 0x30303030);
++}
++
++// ---------------------------------------------------------------- Q4_K
++// Q4_K MODEs: 0 prod; 1 (C*dsB.x)*dmA.x association; 2 m-term unfused (FMUL+FADD); 3 split-K even/odd sub-blocks;
++//             4 dmA products in fp32 (no fp16 rounding); 5 m-term before d-term
++template <int NW, int MODE>
++__global__ void __launch_bounds__(NW*32, 1) bi_n1_q4_K(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    __shared__ int4  sbuf[NW][36];
++    __shared__ float sp[NW][32], sc_[NW][32], smy[NW][32], sdy[NW][32];
++    const int row = blockIdx.x*NW + threadIdx.y;
++    if (row >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3;   // superblock within chunk
++    const int s   = lane & 7;    // 32-value sub-block within superblock
++    const int4 * wr = (const int4 *) (W + (int64_t) row*row_stride);
++    float acc = 0.0f, acc1 = 0.0f;
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++#pragma unroll
++        for (int i = 0; i < 2; ++i) {
++            const int idx = lane + 32*i;
++            if (idx < 9*nsbc) {
++                sbuf[wy][idx] = __ldg(wr + 9*sb0 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + s;   // global 32-value group
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        half2 dsh = __floats2half2_rn(0.0f, 0.0f);
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dsh = __ldg((const half2 *) by + (g & 3));
++            ya  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb  = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++            const int * w = (const int *) sbuf[wy] + 36*sbl;
++            const half2 dm = *(const half2 *) w;
++            const int sc32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 0);
++            const int  m32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 2);
++            const uint8_t sc8 = (uint8_t) (sc32 >> (8*(s % 4)));
++            const uint8_t  m8 = (uint8_t) ( m32 >> (8*(s % 4)));
++            float2 dmA;
++            if (MODE == 4) {
++                const float2 dmf = __half22float2(dm);
++                dmA = make_float2(dmf.x*(float) sc8, -dmf.y*(float) m8);
++            } else {
++                const half2 dmn = dm * make_half2(1.0f, -1.0f);
++                dmA = __half22float2(dmn * make_half2(sc8, m8));
++            }
++            const int * q = w + 4 + 8*(s/2);
++            const int sh = 4*(s & 1);
++            int c = 0;
++            c = __dp4a((q[0] >> sh) & 0x0F0F0F0F, ya.x, c);
++            c = __dp4a((q[1] >> sh) & 0x0F0F0F0F, ya.y, c);
++            c = __dp4a((q[2] >> sh) & 0x0F0F0F0F, ya.z, c);
++            c = __dp4a((q[3] >> sh) & 0x0F0F0F0F, ya.w, c);
++            c = __dp4a((q[4] >> sh) & 0x0F0F0F0F, yb.x, c);
++            c = __dp4a((q[5] >> sh) & 0x0F0F0F0F, yb.y, c);
++            c = __dp4a((q[6] >> sh) & 0x0F0F0F0F, yb.z, c);
++            c = __dp4a((q[7] >> sh) & 0x0F0F0F0F, yb.w, c);
++            const float2 dsB = __half22float2(dsh);
++            if (MODE == 1) {
++                sp[wy][lane] = dmA.x;
++                sc_[wy][lane] = __fmul_rn((float) c, dsB.x);
++            } else {
++                sp[wy][lane] = __fmul_rn(dmA.x, dsB.x);   // MMQ: FMUL.FTZ dmA.x*dsB.x
++                sc_[wy][lane] = (float) c;
++            }
++            smy[wy][lane] = dmA.y;
++            sdy[wy][lane] = dsB.y;
++        }
++        __syncwarp();
++        const int ng = 8*nsbc;
++        for (int i = 0; i < ng; ++i) {
++            const float p = sp[wy][i], cf = sc_[wy][i], my = smy[wy][i], dy = sdy[wy][i];
++            if (MODE == 3) {
++                float & a = (i & 1) ? acc1 : acc;
++                a = __fmaf_rn(p, cf, a);
++                a = __fmaf_rn(my, dy, a);
++            } else if (MODE == 5) {
++                acc = __fmaf_rn(my, dy, acc);
++                acc = __fmaf_rn(p, cf, acc);
++            } else {
++                acc = __fmaf_rn(p, cf, acc);                                  // MMQ: FFMA.FTZ sum += (dmA.x*dsB.x)*C
++                acc = MODE == 2 ? __fadd_rn(acc, __fmul_rn(my, dy))           // control: unfused
++                                : __fmaf_rn(my, dy, acc);                     // MMQ: FFMA.FTZ sum += dmA.y*dsB.y
++            }
++        }
++        __syncwarp();
++    }
++    if (MODE == 3) {
++        acc = __fadd_rn(acc, acc1);
++    }
++    if (lane == 0) {
++        dst[row] = acc;
++    }
++}
++
++// ---------------------------------------------------------------- Q6_K
++// Q6_K MODEs: 0 prod; 1 flat fold (no per-128 tmp): sum = fma(Cf*dB, d, sum); 2 tmp starts with FMUL instead of fma(.,.,0);
++//             3 split-K over half superblocks (even/odd); 4 scales applied in fp32: tmp = fma(C0*sc0 + C1*sc1 in float, dB, tmp);
++//             5 reversed group order inside each half superblock
++static __device__ __forceinline__ int bi_n1_ld32_2(const int * s32, const int off) {
++    // 4-byte read at a 2-byte aligned byte offset
++    return (off & 2) ? (int) __funnelshift_r((unsigned) s32[off >> 2], (unsigned) s32[(off >> 2) + 1], 16) : s32[off >> 2];
++}
++
++template <int NW, int MODE>
++__global__ void __launch_bounds__(NW*32, 1) bi_n1_q6_K(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nsb) {
++    __shared__ int   sbuf[NW][212];
++    __shared__ float scf[NW][32], sdb[NW][32], sda[NW][4];
++    __shared__ float sc0f[NW][32], sc1f[NW][32];
++    const int row = blockIdx.x*NW + threadIdx.y;
++    if (row >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3;   // superblock within chunk
++    const int q   = lane & 7;    // 32-value group within superblock
++    const int n   = q >> 2, j = q & 3;
++    const int * wr = (const int *) (W + (int64_t) row*row_stride);   // row_stride % 4 == 0 (nsb even)
++    float acc = 0.0f, acc1 = 0.0f;
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);       // even, since nsb is even
++        const int nwords = (210*nsbc) / 4;
++#pragma unroll
++        for (int i = 0; i < 7; ++i) {
++            const int idx = lane + 32*i;
++            if (idx < nwords) {
++                sbuf[wy][idx] = __ldg(wr + (210*sb0)/4 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + q;
++        int4 ya = make_int4(0, 0, 0, 0), yb = make_int4(0, 0, 0, 0);
++        float dB = 0.0f;
++        if (sbl < nsbc) {
++            const char * by = y + (int64_t) (g >> 2)*144;
++            dB = __ldg((const float *) by + (g & 3));
++            ya = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++            yb = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++            const int * s32 = sbuf[wy];
++            const int base = 210*sbl;
++            const int oql = base + 64*n + 32*(j & 1);
++            const int oqh = base + 128 + 32*n;
++            const int shl = 4*(j >> 1), shh = 2*j;
++            int v[8];
++#pragma unroll
++            for (int i = 0; i < 8; ++i) {
++                const int ql = (bi_n1_ld32_2(s32, oql + 4*i) >> shl) & 0x0F0F0F0F;
++                const int qh = ((bi_n1_ld32_2(s32, oqh + 4*i) >> shh) & 0x03030303) << 4;
++                v[i] = __vsub4(ql | qh, 0x20202020);
++            }
++            int c0 = 0, c1 = 0;
++            c0 = __dp4a(v[0], ya.x, c0); c0 = __dp4a(v[1], ya.y, c0); c0 = __dp4a(v[2], ya.z, c0); c0 = __dp4a(v[3], ya.w, c0);
++            c1 = __dp4a(v[4], yb.x, c1); c1 = __dp4a(v[5], yb.y, c1); c1 = __dp4a(v[6], yb.z, c1); c1 = __dp4a(v[7], yb.w, c1);
++            const int8_t * sc = (const int8_t *) s32 + base + 192;
++            const int sc0 = sc[2*q + 0], sc1 = sc[2*q + 1];
++            if (MODE == 4) {
++                scf[wy][lane]  = (float) c0;
++                sc0f[wy][lane] = (float) sc0;
++                sc1f[wy][lane] = __fmul_rn((float) c1, (float) sc1);
++            } else {
++                scf[wy][lane] = (float) (c0*sc0 + c1*sc1);   // MMQ: IMAD, IMAD, I2F (exact)
++            }
++            sdb[wy][lane] = dB;
++            if (q == 0) {
++                sda[wy][sbl] = __half2float(__ushort_as_half(*((const unsigned short *) ((const char *) s32 + base + 208))));
++            }
++        }
++        __syncwarp();
++        for (int h = 0; h < 2*nsbc; ++h) {
++            const float dA = sda[wy][h >> 1];
++            if (MODE == 1) {
++                for (int k = 0; k < 4; ++k) {
++                    acc = __fmaf_rn(__fmul_rn(scf[wy][4*h + k], sdb[wy][4*h + k]), dA, acc);
++                }
++                continue;
++            }
++            float tmp;
++            if (MODE == 2) {
++                tmp = __fmul_rn(scf[wy][4*h], sdb[wy][4*h]);
++            } else if (MODE == 4) {
++                tmp = __fmaf_rn(__fmaf_rn(scf[wy][4*h], sc0f[wy][4*h], sc1f[wy][4*h]), sdb[wy][4*h], 0.0f);
++            } else if (MODE == 5) {
++                tmp = __fmaf_rn(scf[wy][4*h + 3], sdb[wy][4*h + 3], 0.0f);
++            } else {
++                tmp = __fmaf_rn(scf[wy][4*h], sdb[wy][4*h], 0.0f);           // MMQ: FFMA.FTZ tmp = Cf*dB + RZ
++            }
++            for (int k = 1; k < 4; ++k) {
++                const int kk = MODE == 5 ? 3 - k : k;
++                const float cf = MODE == 4 ? __fmaf_rn(scf[wy][4*h + kk], sc0f[wy][4*h + kk], sc1f[wy][4*h + kk]) : scf[wy][4*h + kk];
++                tmp = __fmaf_rn(cf, sdb[wy][4*h + kk], tmp);                 // MMQ: FFMA.FTZ tmp += Cf*dB
++            }
++            if (MODE == 3 && (h & 1)) {
++                acc1 = __fmaf_rn(tmp, dA, acc1);
++            } else {
++                acc = __fmaf_rn(tmp, dA, acc);                                // MMQ: FFMA.FTZ sum += tmp*dA
++            }
++        }
++        __syncwarp();
++    }
++    if (MODE == 3) {
++        acc = __fadd_rn(acc, acc1);
++    }
++    if (lane == 0) {
++        dst[row] = acc;
++    }
++}
+diff --git a/ggml/src/ggml-cuda/mmq-bi-n1.cu b/ggml/src/ggml-cuda/mmq-bi-n1.cu
+new file mode 100644
+index 0000000000..a7a7fa4ffb
+--- /dev/null
++++ b/ggml/src/ggml-cuda/mmq-bi-n1.cu
+@@ -0,0 +1,371 @@
++#include "mmq-bi-n1.cuh"
++#include "mmq-bi-n1-kq-v2.cuh"
++#include "mmq-bi-nb-kq.cuh"
++#include "mmq.cuh"
++#include "quantize.cuh"
++
++#include <cstdlib>
++#include <cstring>
++
++// One warp per row, one lane per Q8_0 block, chunks of 32 blocks (1088 B, 16-B aligned since ne00 % 1024 == 0).
++// Weights are loaded with coalesced 16-B loads (prefetched one chunk ahead), staged in shared memory and
++// realigned with funnel shifts. Each lane forms its block's integer dot (exact) and t = float(C)*dA; the
++// 32 (t, dB) pairs are then folded serially, in ascending block order, from shared memory.
++template <int nwarps>
++__launch_bounds__(nwarps*WARP_SIZE, 1)
++static __global__ void mul_mat_bi_fast_n1_q8_0(
++        const char * __restrict__ x, const int64_t stride_row_x, const block_q8_1_mmq * __restrict__ y,
++        float * __restrict__ dst, const int nrows, const int nblocks) {
++    __shared__ int4   sbuf[nwarps][69];
++    __shared__ float4 st[nwarps][8];
++    __shared__ float4 sd[nwarps][8];
++
++    const int row = blockIdx.x*nwarps + threadIdx.y;
++    if (row >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x;
++    const int wy   = threadIdx.y;
++    const int4 * xr = (const int4 *) (x + (int64_t) row*stride_row_x);
++    const int nchunks = nblocks / 32;
++
++    int4 pf[3];
++#pragma unroll
++    for (int i = 0; i < 3; ++i) {
++        const int idx = lane + 32*i;
++        if (idx < 68) {
++            pf[i] = __ldg(xr + idx);
++        }
++    }
++
++    const int * s32 = (const int *) sbuf[wy];
++    const int w0 = 8*lane + lane/2;   // first 32-bit word of block `lane` (34 B per block)
++    const int sh = (lane & 1) * 16;   // odd blocks start on a 2-B boundary
++    float sum = 0.0f;
++    for (int ch = 0; ch < nchunks; ++ch) {
++#pragma unroll
++        for (int i = 0; i < 3; ++i) {
++            const int idx = lane + 32*i;
++            if (idx < 68) {
++                sbuf[wy][idx] = pf[i];
++            }
++        }
++        if (ch + 1 < nchunks) {
++#pragma unroll
++            for (int i = 0; i < 3; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 68) {
++                    pf[i] = __ldg(xr + 68*(ch + 1) + idx);
++                }
++            }
++        }
++        const int b = 32*ch + lane;
++        const block_q8_1_mmq * by = y + (b >> 2);
++        const int4  ya = __ldg((const int4 *) (by->qs + 32*(b & 3)) + 0);
++        const int4  yb = __ldg((const int4 *) (by->qs + 32*(b & 3)) + 1);
++        const float dB = __ldg(&by->d4[b & 3]);
++        __syncwarp();
++
++        int w[9];
++#pragma unroll
++        for (int i = 0; i < 9; ++i) {
++            w[i] = s32[w0 + i];
++        }
++        const uint16_t dbits = uint16_t(uint32_t(w[0]) >> sh);
++        int v[8];
++#pragma unroll
++        for (int i = 0; i < 8; ++i) {
++            v[i] = (int) __funnelshift_rc((unsigned) w[i], (unsigned) w[i + 1], 16 + sh);
++        }
++        int c = ggml_cuda_dp4a(v[0], ya.x, 0);
++        c = ggml_cuda_dp4a(v[1], ya.y, c);
++        c = ggml_cuda_dp4a(v[2], ya.z, c);
++        c = ggml_cuda_dp4a(v[3], ya.w, c);
++        c = ggml_cuda_dp4a(v[4], yb.x, c);
++        c = ggml_cuda_dp4a(v[5], yb.y, c);
++        c = ggml_cuda_dp4a(v[6], yb.z, c);
++        c = ggml_cuda_dp4a(v[7], yb.w, c);
++        const float dA = __half2float(__ushort_as_half(dbits));
++        const float t  = __fmul_rn((float) c, dA);  // MMQ: FMUL.FTZ C*dA
++        ((float *) st[wy])[lane] = t;
++        ((float *) sd[wy])[lane] = dB;
++        __syncwarp();
++#pragma unroll
++        for (int q = 0; q < 8; ++q) {
++            const float4 tq = st[wy][q];
++            const float4 dq = sd[wy][q];
++            sum = __fmaf_rn(tq.x, dq.x, sum);  // MMQ: FFMA.FTZ sum += t*dB
++            sum = __fmaf_rn(tq.y, dq.y, sum);
++            sum = __fmaf_rn(tq.z, dq.z, sum);
++            sum = __fmaf_rn(tq.w, dq.w, sum);
++        }
++        __syncwarp();
++    }
++    if (lane == 0) {
++        dst[row] = sum;
++    }
++}
++
++// Q8_0, NC = 2..8 columns: the v3 kernel's per-(row, column) float program, unchanged, for each column.
++// Forced MMQ in invariant mode gives every column the N=1 result, so each output here is
++//   t_b = float(C_b)*dA_b (FMUL.FTZ);  sum = fma(t_b, dB_b[col], sum) (FFMA.FTZ), b ascending.
++// Weight rows are staged once per chunk and dotted against all NC activation columns; lane l < RW*NC folds
++// (row = l/NC, col = l%NC) serially. Activations: quantize_mmq_q8_1 layout, block (kb, col) at kb*NC + col.
++template <int NW, int RW, int NC>
++__global__ void __launch_bounds__(NW*32) bi_nb_q8_0_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int64_t dst_stride, const int nrows, const int nb) {
++    static_assert(NC >= 2 && RW*NC <= 32, "RW*NC");
++    __shared__ int4  sbuf[NW][RW][69];
++    __shared__ float st[NW][RW*NC][33];
++    __shared__ float sd[NW][NC][33];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int w0 = 8*lane + lane/2, sh = (lane & 1) * 16;
++    float acc = 0.0f;
++    const int nchunks = nb / 32;
++    for (int ch = 0; ch < nchunks; ++ch) {
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 3; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 68) sbuf[wy][r][idx] = __ldg(wr + 68*ch + idx);
++            }
++        }
++        const int b = 32*ch + lane;
++        int4 ya[NC], yb[NC];
++#pragma unroll
++        for (int j = 0; j < NC; ++j) {
++            const char * by = y + ((int64_t) (b >> 2)*NC + j)*144;
++            ya[j] = __ldg((const int4 *) (by + 16 + 32*(b & 3)) + 0);
++            yb[j] = __ldg((const int4 *) (by + 16 + 32*(b & 3)) + 1);
++            sd[wy][j][lane] = __ldg((const float *) by + (b & 3));
++        }
++        __syncwarp();
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int * s32 = (const int *) sbuf[wy][r];
++            int w[9];
++#pragma unroll
++            for (int i = 0; i < 9; ++i) w[i] = s32[w0 + i];
++            const float dA = __half2float(__ushort_as_half(uint16_t(uint32_t(w[0]) >> sh)));
++            int v[8];
++#pragma unroll
++            for (int i = 0; i < 8; ++i) v[i] = (int) __funnelshift_rc((unsigned) w[i], (unsigned) w[i + 1], 16 + sh);
++#pragma unroll
++            for (int j = 0; j < NC; ++j) {
++                int c = 0;
++                c = __dp4a(v[0], ya[j].x, c);
++                c = __dp4a(v[1], ya[j].y, c);
++                c = __dp4a(v[2], ya[j].z, c);
++                c = __dp4a(v[3], ya[j].w, c);
++                c = __dp4a(v[4], yb[j].x, c);
++                c = __dp4a(v[5], yb[j].y, c);
++                c = __dp4a(v[6], yb[j].z, c);
++                c = __dp4a(v[7], yb[j].w, c);
++                st[wy][r*NC + j][lane] = __fmul_rn((float) c, dA);                    // MMQ: FMUL.FTZ C*dA
++            }
++        }
++        __syncwarp();
++        if (lane < RW*NC) {
++            const int j = lane % NC;
++#pragma unroll 8
++            for (int i = 0; i < 32; ++i) {
++                acc = __fmaf_rn(st[wy][lane][i], sd[wy][j][i], acc);                   // MMQ: FFMA.FTZ sum += t*dB
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW*NC && row0 + lane/NC < nrows) {
++        dst[(int64_t) (lane % NC)*dst_stride + row0 + lane/NC] = acc;
++    }
++}
++
++// GGML_CUDA_BI_FAST_NB=0 keeps Q8_0 batches of 2..8 columns on forced MMQ (A/B; both are MMQ-identical).
++static bool ggml_cuda_bi_fast_nb_enabled() {
++    static const bool enabled = [] {
++        const char * e = getenv("GGML_CUDA_BI_FAST_NB");
++        return !(e && atoi(e) == 0);
++    }();
++    return enabled;
++}
++
++// GGML_CUDA_BI_NB_Q4K_LAYOUT (research A/B): unset/other = hybrid (float4 at NC = 2, compact at NC >= 3),
++// "f4" = float4 staging at every NC, "compact" = compact staging at every NC. All three are MMQ-identical.
++static int ggml_cuda_bi_nb_q4k_layout() {
++    static const int layout = [] {
++        const char * e = getenv("GGML_CUDA_BI_NB_Q4K_LAYOUT");
++        if (e && strcmp(e, "f4") == 0)      return 1;
++        if (e && strcmp(e, "compact") == 0) return 2;
++        return 0;
++    }();
++    return layout;
++}
++
++// GGML_CUDA_BI_FAST_NB_KQ=0 keeps only Q4_K/Q6_K batches of 2..8 columns on forced MMQ (A/B).
++static bool ggml_cuda_bi_fast_nb_kq_enabled() {
++    static const bool enabled = [] {
++        const char * e = getenv("GGML_CUDA_BI_FAST_NB_KQ");
++        return !(e && atoi(e) == 0);
++    }();
++    return enabled;
++}
++
++static bool ggml_cuda_bi_fast_n1_enabled() {
++    static const bool enabled = [] {
++        const char * e = getenv("GGML_CUDA_BI_FAST_N1");
++        return !(e && atoi(e) == 0);
++    }();
++    return enabled;
++}
++
++// GGML_CUDA_BI_FAST_N1_KQ=0 disables only the Q4_K/Q6_K kernels (A/B against forced MMQ).
++static bool ggml_cuda_bi_fast_n1_kq_enabled() {
++    static const bool enabled = [] {
++        const char * e = getenv("GGML_CUDA_BI_FAST_N1_KQ");
++        return !(e && atoi(e) == 0);
++    }();
++    return enabled;
++}
++
++// GGML_CUDA_BI_FAST_N1_Q8V3=0 keeps Q8_0 on the original (one row per warp) kernel (A/B; both are MMQ-identical).
++static bool ggml_cuda_bi_fast_n1_q8v3_enabled() {
++    static const bool enabled = [] {
++        const char * e = getenv("GGML_CUDA_BI_FAST_N1_Q8V3");
++        return !(e && atoi(e) == 0);
++    }();
++    return enabled;
++}
++
++bool ggml_cuda_bi_fast_n1_supported(const ggml_tensor * src0, const ggml_tensor * src1, const ggml_tensor * dst, const int cc) {
++    // Only where forced MMQ takes the Turing MMA vec_dot whose order is reproduced here (sm_75).
++    if (!ggml_cuda_bi_fast_n1_enabled() || !GGML_CUDA_CC_IS_NVIDIA(cc) || !turing_mma_available(cc) || ampere_mma_available(cc)) {
++        return false;
++    }
++    // N = 1..8 for every type (bi_nb_q8_0_v3, bi_nb_q4_K_v3, bi_nb_q6_K_v3 for N >= 2).
++    const int64_t ne11 = src1->ne[1];
++    if (ne11 < 1 || ne11 > 8 || (ne11 > 1 && !ggml_cuda_bi_fast_nb_enabled())) {
++        return false;
++    }
++    if (ne11 > 1 && src0->type != GGML_TYPE_Q8_0 && !ggml_cuda_bi_fast_nb_kq_enabled()) {
++        return false;
++    }
++    const bool common = src1->type == GGML_TYPE_F32 && dst->type == GGML_TYPE_F32 &&
++        src1->ne[2] == 1 && src1->ne[3] == 1 && src0->ne[2] == 1 && src0->ne[3] == 1 &&
++        ggml_is_contiguous(src0) && ggml_is_contiguous(src1) && ggml_is_contiguous(dst) &&
++        (uintptr_t) src0->data % 16 == 0 && (uintptr_t) src1->data % 16 == 0;
++    if (!common) {
++        return false;
++    }
++    switch (src0->type) {
++        case GGML_TYPE_Q8_0:
++            return src0->ne[0] % 1024 == 0;
++        case GGML_TYPE_Q4_K: // 144-B superblocks keep 16-B row alignment; tail chunks handle ne00 % 1024 != 0
++            return ggml_cuda_bi_fast_n1_kq_enabled() && src0->ne[0] % 512 == 0;
++        case GGML_TYPE_Q6_K: // 210-B superblocks: an even superblock count keeps rows 4-B aligned
++            return ggml_cuda_bi_fast_n1_kq_enabled() && src0->ne[0] % 512 == 0;
++        default:
++            return false;
++    }
++}
++
++void ggml_cuda_mul_mat_bi_fast_n1(ggml_backend_cuda_context & ctx, const ggml_tensor * src0, const ggml_tensor * src1, ggml_tensor * dst) {
++    const int64_t ne00 = src0->ne[0];
++    const int64_t ne01 = src0->ne[1];
++    cudaStream_t stream = ctx.stream();
++
++    const int64_t ne11 = src1->ne[1];
++    const int64_t s11  = src1->nb[1] / sizeof(float);
++
++    const int64_t ne10_padded = GGML_PAD(ne00, MATRIX_ROW_PADDING);
++    ggml_cuda_pool_alloc<char> src1_q8_1(ctx.pool(), ne11 * ne10_padded/QK8_1_MMQ * sizeof(block_q8_1_mmq));
++    quantize_mmq_q8_1_cuda((const float *) src1->data, nullptr, src1_q8_1.get(), src0->type,
++        ne00, s11, s11*ne11, s11*ne11, ne10_padded, ne11, 1, 1, stream);
++    CUDA_CHECK(cudaGetLastError());
++
++    constexpr int nwarps = 2;
++    if (ne11 > 1) {
++        // 2..8 columns (gated in ggml_cuda_bi_fast_n1_supported)
++        constexpr int rw = 4;
++        const dim3 grid_nb((ne01 + nwarps*rw - 1)/(nwarps*rw), 1, 1);
++        const dim3 block_nb(WARP_SIZE, nwarps, 1);
++        const char * W = (const char *) src0->data;
++        float * d = (float *) dst->data;
++        const int64_t sd = dst->nb[1] / sizeof(float);
++        if (src0->type == GGML_TYPE_Q4_K || src0->type == GGML_TYPE_Q6_K) {
++            const int nsb = (int) (ne00/QK_K);
++            const bool q4 = src0->type == GGML_TYPE_Q4_K;
++            const int lay = ggml_cuda_bi_nb_q4k_layout();
++#define BI_NB_KQ(NCV) \
++            if (q4 && lay == 1) bi_nb_q4_K_v3<nwarps, rw, NCV, false><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nsb); \
++            else if (q4 && lay == 2) bi_nb_q4_K_v3<nwarps, rw, NCV, true><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nsb); \
++            else if (q4) bi_nb_q4_K_v3<nwarps, rw, NCV><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nsb); \
++            else    bi_nb_q6_K_v3<nwarps, rw, NCV><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nsb); \
++            break;
++            switch (ne11) {
++                case 2: BI_NB_KQ(2)
++                case 3: BI_NB_KQ(3)
++                case 4: BI_NB_KQ(4)
++                case 5: BI_NB_KQ(5)
++                case 6: BI_NB_KQ(6)
++                case 7: BI_NB_KQ(7)
++                case 8: BI_NB_KQ(8)
++                default: GGML_ABORT("unsupported ne11");
++            }
++#undef BI_NB_KQ
++            CUDA_CHECK(cudaGetLastError());
++            return;
++        }
++        const int nb = (int) (ne00/QK8_0);
++        switch (ne11) {
++            case 2: bi_nb_q8_0_v3<nwarps, rw, 2><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 3: bi_nb_q8_0_v3<nwarps, rw, 3><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 4: bi_nb_q8_0_v3<nwarps, rw, 4><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 5: bi_nb_q8_0_v3<nwarps, rw, 5><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 6: bi_nb_q8_0_v3<nwarps, rw, 6><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 7: bi_nb_q8_0_v3<nwarps, rw, 7><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            case 8: bi_nb_q8_0_v3<nwarps, rw, 8><<<grid_nb, block_nb, 0, stream>>>(W, src0->nb[1], src1_q8_1.get(), d, sd, (int) ne01, nb); break;
++            default: GGML_ABORT("unsupported ne11");
++        }
++        CUDA_CHECK(cudaGetLastError());
++        return;
++    }
++    const dim3 grid((ne01 + nwarps - 1)/nwarps, 1, 1);
++    const dim3 block(WARP_SIZE, nwarps, 1);
++    switch (src0->type) {
++        case GGML_TYPE_Q8_0:
++            if (ne01 >= 512 && ggml_cuda_bi_fast_n1_q8v3_enabled()) {
++                // v3: 4 rows per warp, lane-parallel fold (identical per-row float program)
++                constexpr int rw = 4;
++                const dim3 grid_q8((ne01 + nwarps*rw - 1)/(nwarps*rw), 1, 1);
++                bi_n1_q8_0_v3<nwarps, rw><<<grid_q8, block, 0, stream>>>(
++                    (const char *) src0->data, src0->nb[1], src1_q8_1.get(), (float *) dst->data, (int) ne01, (int) (ne00/QK8_0));
++            } else {
++                mul_mat_bi_fast_n1_q8_0<nwarps><<<grid, block, 0, stream>>>(
++                    (const char *) src0->data, src0->nb[1], (const block_q8_1_mmq *) src1_q8_1.get(),
++                    (float *) dst->data, (int) ne01, (int) (ne00/QK8_0));
++            }
++            break;
++        case GGML_TYPE_Q4_K: {
++            // v3: 4 rows per warp, lane-parallel fold (same per-row float program as bi_n1_q4_K<.,0>)
++            constexpr int rw = 4;
++            const dim3 grid_kq((ne01 + nwarps*rw - 1)/(nwarps*rw), 1, 1);
++            bi_n1_q4_K_v3<nwarps, rw><<<grid_kq, block, 0, stream>>>(
++                (const char *) src0->data, src0->nb[1], src1_q8_1.get(), (float *) dst->data, (int) ne01, (int) (ne00/QK_K));
++        } break;
++        case GGML_TYPE_Q6_K: {
++            constexpr int rw = 4;
++            const dim3 grid_kq((ne01 + nwarps*rw - 1)/(nwarps*rw), 1, 1);
++            bi_n1_q6_K_v3<nwarps, rw><<<grid_kq, block, 0, stream>>>(
++                (const char *) src0->data, src0->nb[1], src1_q8_1.get(), (float *) dst->data, (int) ne01, (int) (ne00/QK_K));
++        } break;
++        default:
++            GGML_ABORT("unsupported type");
++    }
++    CUDA_CHECK(cudaGetLastError());
++}
+diff --git a/ggml/src/ggml-cuda/mmq-bi-n1.cuh b/ggml/src/ggml-cuda/mmq-bi-n1.cuh
+new file mode 100644
+index 0000000000..81bcdc75e0
+--- /dev/null
++++ b/ggml/src/ggml-cuda/mmq-bi-n1.cuh
+@@ -0,0 +1,13 @@
++#pragma once
++
++#include "common.cuh"
++
++// Batch-invariant fast path for a single src1 column (research prototype), Q8_0 / Q4_K / Q6_K.
++// Reproduces the per-output float program of forced MMQ on the Turing MMA path (sm_75) bit for bit:
++// same src1 quantization (quantize_mmq_q8_1, D4 or DS4), exact integer block dots, then the MMQ
++// float operations in ascending K order (Q8_0 below; Q4_K/Q6_K in mmq-bi-n1-kq.cuh).
++//   Q8_0: t = float(C)*dA; sum = fma(t, dB, sum)
++// Disable with GGML_CUDA_BI_FAST_N1=0 (all types) or GGML_CUDA_BI_FAST_N1_KQ=0 (Q4_K/Q6_K only).
++bool ggml_cuda_bi_fast_n1_supported(const ggml_tensor * src0, const ggml_tensor * src1, const ggml_tensor * dst, int cc);
++
++void ggml_cuda_mul_mat_bi_fast_n1(ggml_backend_cuda_context & ctx, const ggml_tensor * src0, const ggml_tensor * src1, ggml_tensor * dst);
+diff --git a/ggml/src/ggml-cuda/mmq-bi-nb-kq.cuh b/ggml/src/ggml-cuda/mmq-bi-nb-kq.cuh
+new file mode 100644
+index 0000000000..e4b3fd5c2f
+--- /dev/null
++++ b/ggml/src/ggml-cuda/mmq-bi-nb-kq.cuh
+@@ -0,0 +1,217 @@
++#pragma once
++// Q4_K / Q6_K, NC = 2..8 columns: the v3 kernels' per-(row, column) float program, unchanged, for each column.
++// Forced MMQ in invariant mode gives every column the N=1 result, so each output here runs exactly the
++// bi_n1_q4_K_v3 / bi_n1_q6_K_v3 fold for its column. Weight chunks (4 superblocks) are staged once per row and
++// their integer dots taken against all NC activation columns; lane l < RW*NC folds (row l/NC, column l%NC)
++// serially. Activations: quantize_mmq_q8_1 layout, 128-value block (kb, col) at kb*NC + col (144 B each).
++// Requires bi_n1_unpack_scales_q45_K and bi_n1_ld32_2 from mmq-bi-n1-kq-v2.cuh.
++
++template <int NW, int RW, int NC, bool CP_ = (NC >= 3)>
++__global__ void __launch_bounds__(NW*32) bi_nb_q4_K_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int64_t dst_stride, const int nrows, const int nsb) {
++    static_assert(NC >= 2 && RW*NC <= 32, "RW*NC");
++    // Two staging layouts, both with the same per-output float operations on the same operands:
++    // - CP (NC >= 3), compact: integer dot per (row, column, group), row scales dmA per (row, group), column scales
++    //   dsB per (column, group); the fold forms t = __fmul_rn(dmA.x, dsB.x) and float(C) itself. A float4 per term
++    //   needs 38 KB of shared memory at NC = 8, which limited occupancy (§18).
++    // - NC = 2, float4 per term (t, float(C), dmA.y, dsB.y) formed in the compute phase: shared memory is not the
++    //   limit there, and the shorter serial fold (only 8 folding lanes) is 11-35% faster than the compact one.
++    constexpr bool CP = CP_;   // default NC >= 3; GGML_CUDA_BI_NB_Q4K_LAYOUT=f4|compact forces one layout (A/B)
++    __shared__ int4   sbuf[NW][RW][36];
++    __shared__ float4 sf[NW][CP ? 1 : RW*NC][33];
++    __shared__ int    sc_[NW][CP ? RW*NC : 1][33];
++    __shared__ float2 sdm[NW][CP ? RW : 1][33];
++    __shared__ float2 sds[NW][CP ? NC : 1][33];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, s = lane & 7;
++    float acc = 0.0f;   // lane l < RW*NC: row row0 + l/NC, column l%NC
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int4 * wr = (const int4 *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 2; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < 9*nsbc) sbuf[wy][r][idx] = __ldg(wr + 9*sb0 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + s;
++        int4 ya[NC], yb[NC];
++        float2 dsB[NC];
++#pragma unroll
++        for (int j = 0; j < NC; ++j) {
++            ya[j] = make_int4(0, 0, 0, 0); yb[j] = make_int4(0, 0, 0, 0);
++            half2 dsh = __floats2half2_rn(0.0f, 0.0f);
++            if (sbl < nsbc) {
++                const char * by = y + ((int64_t) (g >> 2)*NC + j)*144;
++                dsh   = __ldg((const half2 *) by + (g & 3));
++                ya[j] = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++                yb[j] = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++            }
++            dsB[j] = __half22float2(dsh);
++            if constexpr (CP) sds[wy][j][lane] = dsB[j];
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++#pragma unroll
++            for (int r = 0; r < RW; ++r) {
++                const int * w = (const int *) sbuf[wy][r] + 36*sbl;
++                const half2 dm = *(const half2 *) w;
++                const int sc32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 0);
++                const int  m32 = bi_n1_unpack_scales_q45_K(w + 1, s/4 + 2);
++                const uint8_t sc8 = (uint8_t) (sc32 >> (8*(s % 4)));
++                const uint8_t  m8 = (uint8_t) ( m32 >> (8*(s % 4)));
++                const half2 dmn = dm * make_half2(1.0f, -1.0f);
++                const float2 dmA = __half22float2(dmn * make_half2(sc8, m8));
++                if constexpr (CP) sdm[wy][r][lane] = dmA;
++                const int4 * q4 = (const int4 *) (w + 4 + 8*(s/2));
++                const int4 qa = q4[0], qb = q4[1];
++                const int sh = 4*(s & 1);
++                const int v0 = (qa.x >> sh) & 0x0F0F0F0F, v1 = (qa.y >> sh) & 0x0F0F0F0F;
++                const int v2 = (qa.z >> sh) & 0x0F0F0F0F, v3 = (qa.w >> sh) & 0x0F0F0F0F;
++                const int v4 = (qb.x >> sh) & 0x0F0F0F0F, v5 = (qb.y >> sh) & 0x0F0F0F0F;
++                const int v6 = (qb.z >> sh) & 0x0F0F0F0F, v7 = (qb.w >> sh) & 0x0F0F0F0F;
++#pragma unroll
++                for (int j = 0; j < NC; ++j) {
++                    int c = 0;
++                    c = __dp4a(v0, ya[j].x, c);
++                    c = __dp4a(v1, ya[j].y, c);
++                    c = __dp4a(v2, ya[j].z, c);
++                    c = __dp4a(v3, ya[j].w, c);
++                    c = __dp4a(v4, yb[j].x, c);
++                    c = __dp4a(v5, yb[j].y, c);
++                    c = __dp4a(v6, yb[j].z, c);
++                    c = __dp4a(v7, yb[j].w, c);
++                    if constexpr (CP) {
++                        sc_[wy][r*NC + j][lane] = c;
++                    } else {
++                        sf[wy][r*NC + j][lane] = make_float4(__fmul_rn(dmA.x, dsB[j].x), (float) c, dmA.y, dsB[j].y);
++                    }
++                }
++            }
++        }
++        __syncwarp();
++        if (lane < RW*NC) {
++            const int ng = 8*nsbc;
++            const int r = lane / NC, j = lane % NC;
++            for (int i = 0; i < ng; ++i) {
++                if constexpr (CP) {
++                    const float2 a = sdm[wy][r][i], b = sds[wy][j][i];
++                    acc = __fmaf_rn(__fmul_rn(a.x, b.x), (float) sc_[wy][lane][i], acc);   // MMQ: sum += (dmA.x*dsB.x)*C
++                    acc = __fmaf_rn(a.y, b.y, acc);                                        // MMQ: sum += dmA.y*dsB.y
++                } else {
++                    const float4 v = sf[wy][lane][i];
++                    acc = __fmaf_rn(v.x, v.y, acc);   // MMQ: sum += (dmA.x*dsB.x)*C
++                    acc = __fmaf_rn(v.z, v.w, acc);   // MMQ: sum += dmA.y*dsB.y
++                }
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW*NC && row0 + lane/NC < nrows) {
++        dst[(int64_t) (lane % NC)*dst_stride + row0 + lane/NC] = acc;
++    }
++}
++
++template <int NW, int RW, int NC>
++__global__ void __launch_bounds__(NW*32) bi_nb_q6_K_v3(
++        const char * __restrict__ W, const int64_t row_stride, const char * __restrict__ y,
++        float * __restrict__ dst, const int64_t dst_stride, const int nrows, const int nsb) {
++    static_assert(NC >= 2 && RW*NC <= 32, "RW*NC");
++    __shared__ int   sbuf[NW][RW][212];
++    __shared__ float scf[NW][RW*NC][33];
++    __shared__ float sdb[NW][NC][33];
++    __shared__ float sda[NW][RW][5];
++    const int row0 = (blockIdx.x*NW + threadIdx.y)*RW;
++    if (row0 >= nrows) {
++        return;
++    }
++    const int lane = threadIdx.x, wy = threadIdx.y;
++    const int sbl = lane >> 3, q = lane & 7, n = q >> 2, jj = q & 3;
++    float acc = 0.0f;
++    for (int sb0 = 0; sb0 < nsb; sb0 += 4) {
++        const int nsbc = min(4, nsb - sb0);
++        const int nwords = (210*nsbc)/4;
++#pragma unroll
++        for (int r = 0; r < RW; ++r) {
++            const int * wr = (const int *) (W + (int64_t) min(row0 + r, nrows - 1)*row_stride);
++#pragma unroll
++            for (int i = 0; i < 7; ++i) {
++                const int idx = lane + 32*i;
++                if (idx < nwords) sbuf[wy][r][idx] = __ldg(wr + (210*sb0)/4 + idx);
++            }
++        }
++        const int g = 8*(sb0 + sbl) + q;
++        int4 ya[NC], yb[NC];
++#pragma unroll
++        for (int j = 0; j < NC; ++j) {
++            ya[j] = make_int4(0, 0, 0, 0); yb[j] = make_int4(0, 0, 0, 0);
++            float dB = 0.0f;
++            if (sbl < nsbc) {
++                const char * by = y + ((int64_t) (g >> 2)*NC + j)*144;
++                dB    = __ldg((const float *) by + (g & 3));
++                ya[j] = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 0);
++                yb[j] = __ldg((const int4 *) (by + 16 + 32*(g & 3)) + 1);
++            }
++            sdb[wy][j][lane] = dB;
++        }
++        __syncwarp();
++        if (sbl < nsbc) {
++            const int base = 210*sbl;
++            const int oql = base + 64*n + 32*(jj & 1);
++            const int oqh = base + 128 + 32*n;
++            const int shl = 4*(jj >> 1), shh = 2*jj;
++#pragma unroll 2
++            for (int r = 0; r < RW; ++r) {
++                const int * s32 = sbuf[wy][r];
++                int v[8];
++#pragma unroll
++                for (int i = 0; i < 8; ++i) {
++                    const int ql = (bi_n1_ld32_2(s32, oql + 4*i) >> shl) & 0x0F0F0F0F;
++                    const int qh = ((bi_n1_ld32_2(s32, oqh + 4*i) >> shh) & 0x03030303) << 4;
++                    v[i] = __vsub4(ql | qh, 0x20202020);
++                }
++                const int8_t * sc = (const int8_t *) s32 + base + 192;
++                const int sc0 = sc[2*q], sc1 = sc[2*q + 1];
++#pragma unroll
++                for (int j = 0; j < NC; ++j) {
++                    int c0 = 0, c1 = 0;
++                    c0 = __dp4a(v[0], ya[j].x, c0);
++                    c0 = __dp4a(v[1], ya[j].y, c0);
++                    c0 = __dp4a(v[2], ya[j].z, c0);
++                    c0 = __dp4a(v[3], ya[j].w, c0);
++                    c1 = __dp4a(v[4], yb[j].x, c1);
++                    c1 = __dp4a(v[5], yb[j].y, c1);
++                    c1 = __dp4a(v[6], yb[j].z, c1);
++                    c1 = __dp4a(v[7], yb[j].w, c1);
++                    scf[wy][r*NC + j][lane] = (float) (c0*sc0 + c1*sc1);
++                }
++                if (q == 0) {
++                    sda[wy][r][sbl] = __half2float(__ushort_as_half(*((const unsigned short *) ((const char *) s32 + base + 208))));
++                }
++            }
++        }
++        __syncwarp();
++        if (lane < RW*NC) {
++            const int r = lane / NC, j = lane % NC;
++            for (int h = 0; h < 2*nsbc; ++h) {
++                float tmp = __fmaf_rn(scf[wy][lane][4*h], sdb[wy][j][4*h], 0.0f);       // MMQ: tmp = Cf*dB + RZ
++#pragma unroll
++                for (int k = 1; k < 4; ++k) {
++                    tmp = __fmaf_rn(scf[wy][lane][4*h + k], sdb[wy][j][4*h + k], tmp);  // MMQ: tmp += Cf*dB
++                }
++                acc = __fmaf_rn(tmp, sda[wy][r][h >> 1], acc);                           // MMQ: sum += tmp*dA
++            }
++        }
++        __syncwarp();
++    }
++    if (lane < RW*NC && row0 + lane/NC < nrows) {
++        dst[(int64_t) (lane % NC)*dst_stride + row0 + lane/NC] = acc;
++    }
++}
+diff --git a/tests/test-backend-ops.cpp b/tests/test-backend-ops.cpp
+index c4371500c6..35c850f607 100644
+--- a/tests/test-backend-ops.cpp
++++ b/tests/test-backend-ops.cpp
+@@ -14649,6 +14649,29 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_eval() {
+ static std::vector<std::unique_ptr<test_case>> make_test_cases_perf() {
+     std::vector<std::unique_ptr<test_case>> test_cases;
+ 
++    // research diagnostic: Qwen3.5-2B-like Q8_0 decode shapes (m, k), n = 1
++    for (const auto & [m, k] : std::vector<std::pair<int64_t, int64_t>>{
++            {16, 2048}, {512, 2048}, {2048, 2048}, {4096, 2048}, {6144, 2048}, {2048, 6144}, {248320, 2048}, {4096, 4096}}) {
++        test_cases.emplace_back(new test_mul_mat(GGML_TYPE_Q8_0, GGML_TYPE_F32, m, 1, k, {1, 1}, {1, 1}));
++        // small batches (speculative-decoding verify sizes)
++        for (int n : {2, 3, 4, 5, 6, 8, 12, 16}) {
++            test_cases.emplace_back(new test_mul_mat(GGML_TYPE_Q8_0, GGML_TYPE_F32, m, n, k, {1, 1}, {1, 1}));
++        }
++    }
++    // research diagnostic: Qwen3.5-0.8B Q4_K_M decode shapes (m, k), n = 1
++    for (const auto & [m, k] : std::vector<std::pair<int64_t, int64_t>>{
++            {16, 1024}, {512, 1024}, {2048, 1024}, {3584, 1024}, {4096, 1024}, {6144, 1024}, {1024, 2048}, {1024, 3584}, {4096, 4096}}) {
++        for (int n : {1, 2, 3, 4, 8}) {   // n >= 2: draft catch-up batch sizes in speculative decoding
++            test_cases.emplace_back(new test_mul_mat(GGML_TYPE_Q4_K, GGML_TYPE_F32, m, n, k, {1, 1}, {1, 1}));
++        }
++    }
++    for (const auto & [m, k] : std::vector<std::pair<int64_t, int64_t>>{
++            {512, 1024}, {6144, 1024}, {1024, 3584}, {248320, 1024}, {4096, 4096}}) {
++        for (int n : {1, 2, 3, 4, 8}) {
++            test_cases.emplace_back(new test_mul_mat(GGML_TYPE_Q6_K, GGML_TYPE_F32, m, n, k, {1, 1}, {1, 1}));
++        }
++    }
++
+     test_cases.emplace_back(new test_timestep_embedding());
+     test_cases.emplace_back(new test_timestep_embedding(GGML_TYPE_F32, {32769, 1, 1, 1}, 4096, 10000));
+     test_cases.emplace_back(new test_timestep_embedding(GGML_TYPE_F32, {65, 1, 1, 1}, 1, 10000));
+@@ -15485,7 +15508,9 @@ static bool op_names_filter_selects(const char * op_names_filter, const char * o
+ 
+ // LLAMA_TEST_BATCH_INVARIANT_DISABLE=1 runs batch mode without batch invariance enabled.
+ static void set_batch_invariant(ggml_backend_t backend, test_mode mode) {
+-    if (mode != MODE_BATCH || getenv("LLAMA_TEST_BATCH_INVARIANT_DISABLE")) {
++    // research diagnostic: LLAMA_TEST_BATCH_INVARIANT_PERF=1 also enables batch invariance in perf mode.
++    const bool perf_bi = mode == MODE_PERF && getenv("LLAMA_TEST_BATCH_INVARIANT_PERF");
++    if ((mode != MODE_BATCH && !perf_bi) || getenv("LLAMA_TEST_BATCH_INVARIANT_DISABLE")) {
+         return;
+     }
+     ggml_backend_reg_t reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend));
+@@ -15744,6 +15769,7 @@ static bool test_backend(ggml_backend_t backend, ggml_backend_dev_t dev, test_mo
+     }
+ 
+     if (mode == MODE_PERF) {
++        set_batch_invariant(backend, mode);
+         for (auto & test : test_cases) {
+             test->eval_perf(backend, op_names_filter, output_printer);
+         }

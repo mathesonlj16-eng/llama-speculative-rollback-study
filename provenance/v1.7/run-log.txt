@@ -1,0 +1,119 @@
+v1.7.0 run log: environment, inputs, timelines (times are local, UTC-05:00)
+
+== environment
+NVIDIA GeForce GTX 1650, 592.00, 4096 MiB, 1785 MHz, 6001 MHz
+Cuda compilation tools, release 13.2, V13.2.86
+Build cuda_13.2.r13.2/compiler.37953736_0
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+kernel: 6.18.58.1-microsoft-standard-WSL2
+build flags: CMAKE_BUILD_TYPE=Release GGML_CUDA=ON CMAKE_CUDA_ARCHITECTURES=75 (as scripts/v1.6/run.sh build), ccache
+
+== source
+PR #32081 head: 3f25ea199a36a9e83480b6dac0941bb82c96c5b9
+patch: patches/v1.7/invariant-gemv-nbkq-fafix-vs-pr-head.patch sha256 db53004e70f3d286ad3abfa1f21f10d9c0542a20e27d1ab6052fa21c7962ec54
+models: as in provenance/v1.6/run-log.txt (Qwen3.5-2B Q8_0 target, Qwen3.5-0.8B Q4_K_M draft)
+sanitizer: compute-sanitizer from CUDA 13.2; WDDM debugger interface enabled via HKLM\SOFTWARE\NVIDIA Corporation\GPUDebugger\EnableInterface=1
+
+== timeline: float4 build: build, gates, SASS, per-op timing (5 rounds), speculative (3 rounds) [scripts/v1.7/run-nbkq.sh]
+2026-11-26T17:07:41-05:00 build start
+2026-11-26T17:08:50-05:00 compiled
+2026-11-26T17:08:53-05:00 smoke-ok
+2026-11-26T17:10:36-05:00 sweep-done
+2026-11-26T17:10:39-05:00 sanitizer-done
+2026-11-26T17:12:27-05:00 batch-done
+2026-11-26T17:13:31-05:00 dumps singles
+2026-11-26T17:13:58-05:00 dumps whole
+2026-11-26T17:14:30-05:00 dumps c4
+2026-11-26T17:14:56-05:00 dumps c8
+2026-11-26T17:15:25-05:00 dumps pair4
+2026-11-26T17:16:07-05:00 checks-done
+2026-11-26T17:18:33-05:00 sass-done
+2026-11-26T18:05:26-05:00 perf-done
+2026-11-26T18:08:23-05:00 spec r1 off
+2026-11-26T18:11:06-05:00 spec r1 new
+2026-11-26T18:13:48-05:00 spec r2 new
+2026-11-26T18:16:40-05:00 spec r2 off
+2026-11-26T18:19:33-05:00 spec r3 off
+2026-11-26T18:22:15-05:00 spec r3 new
+2026-11-26T18:22:15-05:00 done
+
+== timeline: compact-only build: gates, Q4_K per-op timing (3 rounds), speculative [run-nbkq.sh with compact staging, Q4_K only]
+2026-11-26T18:31:20-05:00 build start
+2026-11-26T18:31:52-05:00 compiled
+2026-11-26T18:31:55-05:00 smoke-ok
+2026-11-26T18:33:31-05:00 sweep-done
+2026-11-26T18:35:12-05:00 batch-done
+2026-11-26T18:36:15-05:00 dumps singles
+2026-11-26T18:36:40-05:00 dumps whole
+2026-11-26T18:37:14-05:00 dumps c4
+2026-11-26T18:37:46-05:00 dumps c8
+2026-11-26T18:38:13-05:00 dumps pair4
+2026-11-26T18:38:49-05:00 checks-done
+2026-11-26T18:41:15-05:00 sass-done
+2026-11-26T19:02:02-05:00 perf-done
+2026-11-26T19:04:23-05:00 spec r1 off
+2026-11-26T19:06:35-05:00 spec r1 new
+2026-11-26T19:08:47-05:00 spec r2 new
+2026-11-26T19:11:05-05:00 spec r2 off
+2026-11-26T19:13:22-05:00 spec r3 off
+2026-11-26T19:15:34-05:00 spec r3 new
+2026-11-26T19:15:34-05:00 done
+
+== timeline: hybrid build (final): gates, Q4_K N=2,8 timing (3 rounds), speculative [scripts/v1.7/run-nbkq-hybrid.sh]
+2026-11-26T19:17:15-05:00 build start
+2026-11-26T19:17:30-05:00 compiled
+2026-11-26T19:17:33-05:00 smoke-ok
+2026-11-26T19:19:13-05:00 sweep-done
+2026-11-26T19:20:55-05:00 batch-done
+2026-11-26T19:21:58-05:00 dumps singles
+2026-11-26T19:22:24-05:00 dumps whole
+2026-11-26T19:22:58-05:00 dumps c4
+2026-11-26T19:23:31-05:00 dumps c8
+2026-11-26T19:23:57-05:00 dumps pair4
+2026-11-26T19:24:39-05:00 checks-done
+2026-11-26T19:27:02-05:00 sass-done
+2026-11-26T19:34:26-05:00 perf-done
+2026-11-26T19:36:48-05:00 spec r1 off
+2026-11-26T19:38:59-05:00 spec r1 new
+2026-11-26T19:41:09-05:00 spec r2 new
+2026-11-26T19:43:27-05:00 spec r2 off
+2026-11-26T19:45:45-05:00 spec r3 off
+2026-11-26T19:47:57-05:00 spec r3 new
+2026-11-26T19:47:57-05:00 done
+
+== timeline: layout A/B in one build: gate, speculative (3 rounds x 3 layouts) [scripts/v1.7/run-layout-ab.sh]
+2026-11-26T20:04:01-05:00 build start
+2026-11-26T20:04:34-05:00 compiled
+2026-11-26T20:04:48-05:00 gate-done
+2026-11-26T20:07:00-05:00 spec r1 f4
+2026-11-26T20:09:12-05:00 spec r1 hybrid
+2026-11-26T20:11:23-05:00 spec r1 compact
+2026-11-26T20:13:34-05:00 spec r2 compact
+2026-11-26T20:15:43-05:00 spec r2 f4
+2026-11-26T20:17:53-05:00 spec r2 hybrid
+2026-11-26T20:20:03-05:00 spec r3 hybrid
+2026-11-26T20:22:13-05:00 spec r3 compact
+2026-11-26T20:24:23-05:00 spec r3 f4
+2026-11-26T20:24:23-05:00 done
+
+== sanitizer [scripts/v1.7/run-sanitizer.sh], 2026-11-26 ~19:58
+q4K-1024x100 memcheck exit=0 2s ::  ERROR SUMMARY: 0 errors
+q4K-3584x100 memcheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q6K-1024x100 memcheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q6K-3584x100 memcheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q8-2048x100 memcheck exit=0 0s ::  ERROR SUMMARY: 0 errors
+q4K-1024x100 racecheck exit=0 2s ::  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+q4K-3584x100 racecheck exit=0 1s ::  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+q6K-1024x100 racecheck exit=0 1s ::  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+q6K-3584x100 racecheck exit=0 1s ::  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+q8-2048x100 racecheck exit=0 3s ::  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+q4K-1024x100 initcheck exit=0 1s ::  ERROR SUMMARY: 124 errors were not printed. Use --print-limit option to adjust the number of printed errors
+q4K-3584x100 initcheck exit=0 2s ::  ERROR SUMMARY: 124 errors were not printed. Use --print-limit option to adjust the number of printed errors
+q6K-1024x100 initcheck exit=0 1s ::  ERROR SUMMARY: 124 errors were not printed. Use --print-limit option to adjust the number of printed errors
+q6K-3584x100 initcheck exit=0 1s ::  ERROR SUMMARY: 124 errors were not printed. Use --print-limit option to adjust the number of printed errors
+q8-2048x100 initcheck exit=0 1s ::  ERROR SUMMARY: 124 errors were not printed. Use --print-limit option to adjust the number of printed errors
+q4K-1024x100 synccheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q4K-3584x100 synccheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q6K-1024x100 synccheck exit=0 1s ::  ERROR SUMMARY: 0 errors
+q6K-3584x100 synccheck exit=0 0s ::  ERROR SUMMARY: 0 errors
+q8-2048x100 synccheck exit=0 1s ::  ERROR SUMMARY: 0 errors

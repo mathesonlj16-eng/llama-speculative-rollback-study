@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.7.0 (2026-11-26)
+
+Extends the v1.6.0 kernels to Q4_K and Q6_K at 2–8 tokens per batch, adds a sanitizer pass and a matched layout A/B, and collects the batch-invariance results in an evidence pack.
+
+- **Added** Q4_K/Q6_K kernels for N = 2..8 (`mmq-bi-nb-kq.cuh`). They keep v1.6.0's per-output float program, stage weights once per chunk and fold each (row, column) serially.
+- **Proved** bit identity with forced MMQ:
+  - 0 differences in 46,812,672 floats over 13 draft shapes and 7 input families, including −0.0;
+  - `test-backend-ops batch` 112/112;
+  - every draft and target fixture plan byte-identical;
+  - speculative tokens and full logits equal plain decoding.
+- **Found and fixed** a Q4_K slowdown at N = 7–8 (up to 1.64× default). The cause was shared-memory occupancy (38.4 KB per block), not registers. The fix is compact staging at N ≥ 3 and the original float4 layout at N = 2.
+- **Measured:**
+  - per op: Q4_K 0.73–1.16× default at N = 2 and 0.72–0.98× at N = 8; Q6_K 0.66–1.32×;
+  - invariant-mode speculation at k = 1: 67.9–70.0 tok/s, 1.03–1.05× plain invariant decoding, up from 0.79×. This changes v1.6.0's "plain invariant decoding is fastest" for k = 1; larger k still loses at short context.
+- **Measured** that the staging layout's effect end to end is within run-to-run noise (≤ 2%), in a matched A/B. Between-session variation is about ±3%.
+- **Ran** compute-sanitizer: memcheck, racecheck and synccheck are clean on all fast kernels. Every initcheck report is in upstream's forced-MMQ `need_check` kernel, identically at PR head. Source analysis shows these are intended padding over-reads that are never consumed.
+- **Added** `patches/v1.7/` (superseding v1.6's patch), `provenance/v1.7/` (FINDINGS.md, EVIDENCE.md, run-log.txt), `results/v1.7/` and `scripts/v1.7/` (harness, archived drivers, perf summary), plus v1.7.0 checks in `scripts/verify-results.py`.
+- **Changed** README, REPRODUCE and LICENSING.
+
 ## v1.6.0 (2026-11-26)
 
 Adds fast kernels for PR #32081's batch-invariant mode on sm_75 that keep the PR's invariant bits, and an end-to-end speculative-decoding check.

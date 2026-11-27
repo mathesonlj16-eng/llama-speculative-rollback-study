@@ -1,0 +1,21 @@
+sweep: BI cols N=1..8 vs N=16 forced MMQ: bad 0 of 46812672; default-mode control: rows failing 315 of 450, floats 35718199 of 46812672; ref -0.0 outputs 12980, non-finite 1805678
+sanitizer racecheck q4_K: ========= RACECHECK SUMMARY: 2 hazards displayed (2 errors, 0 warnings)
+sanitizer memcheck q4_K: ========= ERROR SUMMARY: 2 errors
+sanitizer racecheck q6_K: ========= RACECHECK SUMMARY: 2 hazards displayed (2 errors, 0 warnings)
+sanitizer memcheck q6_K: ========= ERROR SUMMARY: 2 errors
+batch-on:   112/112 tests passed exit=0
+batch-nbkq0:   112/112 tests passed exit=0
+draft e1 BI on: new vs nbkq0 files=34 differ=0
+draft e1 on-new: plans not bit-identical to own ref: 0 of 34
+draft e1 on-nbkq0: plans not bit-identical to own ref: 0 of 34
+draft plan singles new vs nbkq0 (BI on): identical
+draft plan singles vs singles (BI on, new): identical
+draft plan whole new vs nbkq0 (BI on): identical
+draft plan whole vs singles (BI on, new): identical
+draft plan c4 new vs nbkq0 (BI on): identical
+draft plan c4 vs singles (BI on, new): identical
+draft plan c8 new vs nbkq0 (BI on): identical
+draft plan c8 vs singles (BI on, new): identical
+draft plan pair4 new vs nbkq0 (BI on): identical
+draft plan pair4 vs singles (BI on, new): identical
+2B e1 BI on: vs pr-bi-fafix files=34 differ=0

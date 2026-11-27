@@ -1,0 +1,22 @@
+========= COMPUTE-SANITIZER
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 4095 MiB):
+  Device 0: NVIDIA GeForce GTX 1650, compute capability 7.5, VMM: yes, VRAM: 4095 MiB
+The following devices will have suboptimal performance due to a lack of tensor cores:
+  Device 0: NVIDIA GeForce GTX 1650
+Consider compiling with CMAKE_CUDA_ARCHITECTURES=61-virtual;80-virtual and DGGML_CUDA_FORCE_MMQ to force the use of the Pascal code for Turing.
+[san K=2048 M=100 normal] seeds failing per candidate: prod=0/1 ctrl_a_assoc=1/1 ctrl_b_unfused=1/1 ctrl_c_splitK2=1/1 ctrl_d_mmvq_quant=1/1 ctrl_e_reverse=1/1
+[san K=2048 M=100] SUMMARY ref_selfinv_bad=0 fp64_bad=0 worst_fp64_norm=1.205e-07
+  prod               mismatching 0 / 5200 floats, failing seeds 0
+  ctrl_a_assoc       mismatching 3356 / 5200 floats, failing seeds 1
+  ctrl_b_unfused     mismatching 3564 / 5200 floats, failing seeds 1
+  ctrl_c_splitK2     mismatching 4246 / 5200 floats, failing seeds 1
+  ctrl_d_mmvq_quant  mismatching 5200 / 5200 floats, failing seeds 1
+  ctrl_e_reverse     mismatching 4504 / 5200 floats, failing seeds 1
+label,K,M,type,seed,ref_selfinv_bad,cand,bad_vs_ref,compared,nonfinite_ref,nonfinite_cand,fp64_maxerr_norm,fp64_bad
+san,2048,100,normal,0,0,prod,0,5200,0,0,1.205e-07,0
+san,2048,100,normal,0,0,ctrl_a_assoc,3356,5200,0,0,0.000e+00,0
+san,2048,100,normal,0,0,ctrl_b_unfused,3564,5200,0,0,0.000e+00,0
+san,2048,100,normal,0,0,ctrl_c_splitK2,4246,5200,0,0,0.000e+00,0
+san,2048,100,normal,0,0,ctrl_d_mmvq_quant,5200,5200,0,0,0.000e+00,0
+san,2048,100,normal,0,0,ctrl_e_reverse,4504,5200,0,0,0.000e+00,0
+========= ERROR SUMMARY: 0 errors

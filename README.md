@@ -156,6 +156,27 @@ They are gated to sm_75 and include the v1.5.0 FA fix.
 
 [v1.6.0 findings](provenance/v1.6/FINDINGS.md) · [Patch](patches/v1.6/invariant-gemv-fafix-vs-pr-head.patch) · [Results](results/v1.6/) · [Harnesses](scripts/v1.6/)
 
+## Exact speculative decoding now pays at k = 1 (v1.7.0)
+
+v1.6.0 left one invariance-specific cost. Each speculative round, the draft model reprocesses the accepted tokens plus the bonus token as a batch of 2 or more, and in invariant mode that batch still went through forced MMQ for the draft's Q4_K/Q6_K weights. v1.7.0 extends the same construction to Q4_K and Q6_K at 2–8 tokens per batch.
+
+- **Correctness (proven by exact byte compares).**
+  - Every column of N = 1..8 equals forced MMQ: 0 differences in 46.8 M compared floats on 13 draft shapes and 7 input families.
+  - `test-backend-ops batch` passes 112/112, and every fixture plan of both models is byte-identical.
+  - Speculative tokens and full logits still equal plain decoding for every draft length.
+  - `compute-sanitizer` memcheck, racecheck and synccheck are clean on all the fast kernels.
+- **Speed (measured on this GTX 1650).**
+  - Q4_K is 0.73–1.16× default MMVQ's time at N = 2 and 0.72–0.98× at N = 8.
+  - Q6_K is 0.66–1.32× at N = 2..8.
+  - Forced MMQ costs 0.9–5.4× on the same shapes.
+- **Speculative decoding.** In invariant mode, a draft length of 1 now runs at 67.9–70.0 tok/s, 1.03–1.05× plain invariant decoding. Before, it was 0.79×. Comparing across runs, that is also above v1.6.0's best short-context figures in default mode (61.1 plain, 64.8 speculative). Larger draft lengths still lose at short context, because a draft step costs about 80% of a target step, which is unrelated to invariance.
+- **A slowdown at 7–8 tokens** in the first version was shared-memory occupancy, not registers. Choosing the staging layout per batch width fixed it. A matched A/B showed the layout choice is within run-to-run noise (≤ 2%) end to end.
+- **initcheck reports in upstream's forced MMQ** are deliberate over-reads of host-added padding whose values are never used. The count is identical at unmodified PR head; this is from source analysis.
+
+The [evidence pack](provenance/v1.7/EVIDENCE.md) collects the v1.4.0–v1.7.0 batch-invariance results: claims, setup, evidence, prior art and limits.
+
+[v1.7.0 findings](provenance/v1.7/FINDINGS.md) · [Evidence pack](provenance/v1.7/EVIDENCE.md) · [Patch](patches/v1.7/invariant-gemv-nbkq-fafix-vs-pr-head.patch) · [Results](results/v1.7/) · [Drivers and harness](scripts/v1.7/)
+
 See [reproduction](REPRODUCE.md) and [methodology and limits](METHODOLOGY.md) for details.
 
 Investigation and implementation developed with AI assistance. Experimental results were reproduced and reviewed by the author.

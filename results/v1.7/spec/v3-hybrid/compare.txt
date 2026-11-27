@@ -1,0 +1,18 @@
+== r1-bi-new.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+== r1-bi-off.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+== results/v1.6/spec/r1-bi-rs.tok
+k=1: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=2: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=3: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=4: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=5: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+k=7: seqs with token diff 0/19; seqs with logit-hash diff 0/19
+plain r1-bi-new.tok vs r1-bi-off.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-new.tok vs results/v1.6/spec/r1-bi-rs.tok: token diff 0/19, hash diff 0/19
+plain r1-bi-off.tok vs results/v1.6/spec/r1-bi-rs.tok: token diff 0/19, hash diff 0/19

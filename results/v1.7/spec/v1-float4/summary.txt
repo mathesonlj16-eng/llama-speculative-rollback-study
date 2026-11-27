@@ -1,0 +1,16 @@
+tok/s = generated tokens / decode time (prefill excluded); median over runs [min-max]; speed-up vs plain (k=0) same arm
+acc = accepted/drafted; per-round ms: draft / verify / ckpt / rollback (median run)
+
+== bi-new prefix=0  runs=3
+k=0:   66.7 tok/s [66.5-66.8]  x1.00
+k=1:   70.0 tok/s [69.9-70.4]  x1.05  acc 0.91  tok/round 1.89  per-round ms 9.8 / 16.6 / 0.60 / 0.05  redecode_bad 0
+k=3:   61.7 tok/s [60.2-62.2]  x0.93  acc 0.85  tok/round 3.49  per-round ms 34.3 / 21.5 / 0.68 / 0.14  redecode_bad 0
+k=5:   60.0 tok/s [58.5-60.2]  x0.90  acc 0.77  tok/round 4.69  per-round ms 50.6 / 26.7 / 0.74 / 0.25  redecode_bad 0
+k=7:   55.5 tok/s [55.1-55.8]  x0.83  acc 0.70  tok/round 5.71  per-round ms 69.2 / 32.5 / 0.75 / 0.37  redecode_bad 0
+
+== bi-off prefix=0  runs=3
+k=0:   66.7 tok/s [66.7-66.8]  x1.00
+k=1:   52.8 tok/s [52.5-53.1]  x0.79  acc 0.91  tok/round 1.89  per-round ms 18.4 / 16.7 / 0.68 / 0.06  redecode_bad 0
+k=3:   55.1 tok/s [54.6-55.2]  x0.83  acc 0.85  tok/round 3.49  per-round ms 41.1 / 21.5 / 0.69 / 0.15  redecode_bad 0
+k=5:   56.0 tok/s [55.1-56.1]  x0.84  acc 0.77  tok/round 4.69  per-round ms 56.2 / 26.6 / 0.74 / 0.25  redecode_bad 0
+k=7:   53.6 tok/s [52.9-53.7]  x0.80  acc 0.70  tok/round 5.71  per-round ms 72.8 / 32.7 / 0.61 / 0.31  redecode_bad 0

@@ -1,0 +1,10 @@
+========= COMPUTE-SANITIZER
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 4095 MiB):
+  Device 0: NVIDIA GeForce GTX 1650, compute capability 7.5, VMM: yes, VRAM: 4095 MiB
+The following devices will have suboptimal performance due to a lack of tensor cores:
+  Device 0: NVIDIA GeForce GTX 1650
+Consider compiling with CMAKE_CUDA_ARCHITECTURES=61-virtual;80-virtual and DGGML_CUDA_FORCE_MMQ to force the use of the Pascal code for Turing.
+[san q4_K K=1024 M=100] SUMMARY bi_bad=0/3600 seeds_bad=0 ctrl_default_bad=3600/3600 ctrl_cells_failing=8/8 ref_negzero=0 ref_nonfinite=0
+label,type,K,M,family,seed,bi_bad,bi_cmp,ctrl_default_bad,ctrl_cmp,ref_negzero,ref_nonfinite
+san,q4_K,1024,100,normal,0,0,3600,3600,3600,0,0
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

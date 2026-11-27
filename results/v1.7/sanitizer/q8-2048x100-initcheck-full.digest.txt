@@ -1,0 +1,4 @@
+    224 =========     at void mul_mat_q<(ggml_type)8, (int)8, (bool)1, (ggml_prec)30, (bool)0, (bool)0>(const char *, const char *, const int *, const int *, const ggml_cuda_mm_id_tile_spec *, float *, float *, const float *, ggml_glu_op, float, const float *, const float *, uint3, int, int, int, int, int, uint3, uint3, int, int, int, uint3, uint3, int, int, int, uint3)
+      1 ========= ERROR SUMMARY: 224 errors
+    224 ========= Uninitialized __global__ memory read of size 4 bytes
+      1 [san K=2048 M=100] SUMMARY ref_selfinv_bad=0 fp64_bad=0 worst_fp64_norm=1.205e-07
